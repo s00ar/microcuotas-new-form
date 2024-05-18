@@ -1,0 +1,81 @@
+.admin-background{
+    background-color: #f4b12217;
+}
+.admin-title-card{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.admin-title{
+    color: black;
+    font: bolder;
+    font-size: 2rem;
+}
+.admin-title2{
+    color: black;
+    font: 100;
+    font-size: 1.2rem;
+}
+.btn-admin{
+    background-color: #E36F1E ;
+    text-decoration: none;
+    border-radius: 6rem;
+    padding: .8rem;
+    font-size: 1rem;
+    text-align: center;
+    border: 0;
+    box-shadow:#575757 .2rem .2rem ;
+}
+.btn-admin:hover {
+    background-color: #e3701e79 ;
+    transition: background-color 0.5s ease;
+}
+
+.btn-admin-text{
+    color: #fff;
+    text-decoration: none;
+}
+.register__helpText--success{
+    background-color: green;
+    font-weight: bolder;
+    font-size: 2rem;
+}
+.register__helpText--error{
+    background-color: red;
+    font-weight: bolder;
+    font-size: 1.2rem;
+}
+
+.register {
+    /* height: 100vh; */
+    padding-top: 3rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+.register__container {
+    display: flex;
+    width: 50vw;
+    flex-direction: column;
+    text-align: center;
+    padding: 30px;
+}
+.register__textBox {
+    padding: 10px;
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+.register__btn {
+    padding: 10px;
+    font-size: 18px;
+    margin-bottom: 10px;
+    border: none;
+    color: white;
+    background-color: black;
+}
+.register__google {
+}
+.register div {
+    margin-top: 7px;
+}

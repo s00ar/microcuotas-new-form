@@ -1,0 +1,116 @@
+/* styles.css */
+.user__data {
+  padding: 0.6rem 0 0.6rem 0;
+}
+.statement__text{
+  padding: 0 0 0 1rem;
+  margin: 1rem;
+}
+.firsth1{
+  margin-top: 1rem;
+}
+.form__container{
+  display: flex;
+  flex-direction: row;
+  width: 80%;
+  padding-left: 1rem;
+  margin:auto;
+}
+.form__container__leftpanel{
+  width: 50vw;
+  padding: 1rem;
+}
+.form__container__rightpanel{
+  padding: 1rem;
+  width: 50vw;
+}
+
+/* Estilos generales */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f4;
+    align-items: center;
+  }
+  
+  .container {
+    /* max-width: 600px; */
+    margin: 20px auto;
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  }
+  
+  h1 {
+    text-align: center;
+  }
+  
+  .form__container form {
+    gap: 10px;
+    align-items: center;
+  }
+  
+  .form__container label {
+    margin-bottom: 5px;
+  }
+  
+  .form__container input[type='text'],
+  .form__container input[type='number'],
+  .form__container input[type='tel'],
+  .form__container input[type='email'],
+  .form__container select,
+  .form__container input[type='file'],
+  .form__container input[type='date'] {
+    width: 100%;
+    padding: 2px;
+    margin: 5px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 2px;
+  }
+  
+  .form__btn {
+    padding: 10px;
+    background-color: #007bff;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 2rem;
+    display: block;
+    margin: auto;
+    margin-bottom: 3rem;  
+  }
+  
+  .form__btn:hover {
+    background-color: #0056b3;
+  }
+  /* Mobile queries */
+  
+  @media (max-width: 600px) {
+    .firsth1{
+      max-width: 400px;
+    }
+    .user__data{
+      max-width: 300px !important;
+    }
+    .form__container {
+      flex-direction: column;
+      align-items: center;
+      max-width: 100%;
+      padding: 0 0 1rem 0 0;
+      margin: 0;
+      gap: 10px;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 2rem;
+    }
+    .form__container__leftpanel,
+    .form__container__rightpanel {
+      width: 100%;
+      margin: -1rem;
+    }
+  }

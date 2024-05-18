@@ -1,0 +1,50 @@
+.login {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.login__buttons{
+    display: grid;
+    gap: 2rem;
+    width: 100%;
+    max-width: 384px;
+    margin: auto;
+}
+.login__buttons button{
+    font-size: 1.3rem;
+    padding: 1rem;
+    border-radius: 25px;
+    opacity: 0.3;
+}
+.login__buttons button:hover{
+    transform: scale(0.9);
+    transition-duration: 100ms;
+    opacity: 1;
+}
+.login__container {
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+    padding: 20px;
+}
+.login__textBox {
+    padding: 10px;
+    font-size: 18px;
+    margin-bottom: 10px;
+}
+.login__btn {
+    padding: 10px;
+    font-size: 18px;
+    margin-bottom: 10px;
+    border: none;
+    color: white;
+    background-color: black;
+}
+.login__google {
+    background-color: #4285f4;
+}
+.login div {
+    margin-top: 7px;
+    border-radius: 25px;
+    background-color: rgb(5, 5, 144);
+}

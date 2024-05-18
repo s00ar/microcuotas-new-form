@@ -1,0 +1,80 @@
+.filter__field{
+    /* width: 70%; */
+    display: flex;
+    justify-content: space-between;
+}
+.filter__field__container{
+    display: flex;
+    overflow: visible !important;
+    /* justify-content: center; */
+}
+.admin__logo{
+    height: 160px;
+}
+.admin-background{
+    background-color: #f7f6f6;
+    width: 100%;
+}
+.admin__title__card{
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    /* width: 60%; */
+}
+.admin__title{
+    color: rgb(83, 182, 248);
+    font: bolder;
+    font-size: 2rem;
+    text-shadow: 2px 2px 2px #6b6a6a;
+    padding: 2rem;
+}
+.admin__title h2{
+    font-size: 1rem;
+}
+.container__chart{
+    display: flex;
+    justify-content: space-between;
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    /* overflow: hidden; */
+}
+.chart__titles{
+    text-align: center;
+}
+.nav__container{
+    height: 13%;
+}
+.innderNav{
+    display: flex;
+    justify-content: space-between;
+}
+.admin__button__container{
+    margin: 0;
+    padding: 0;
+    justify-content: space-between;
+    flex-direction: row;
+}
+
+.btn__admin{
+    font-size: 1rem;
+    text-align: center;
+    border: 0;
+    color: black;
+    margin: 1rem;
+    padding: 0.5rem;
+    border-radius: 15px;
+}
+.btn__admin:hover {
+    background-color: #321ee3 ;
+    transition: background-color 0.3s ease;
+}
+
+.btn__admin__text:hover{
+    color:aliceblue;
+}
+.btn__admin__text{
+    color: rgb(0, 0, 0)212;
+    text-decoration: none;
+    font-weight: 700;
+}
