@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { auth, db, fetchContactsData, logout } from "../firebase";
+import { auth, db, deleteDoc, fetchContactsData, logout } from "../firebase";
 import { Link, useNavigate } from "react-router-dom";
 import { query, collection, getDocs, where } from "firebase/firestore";
 import '../css/Report.css';
@@ -42,12 +42,12 @@ export default function Admin() {
         console.error('Error fetching data from Firestore:', error.message);
       }
     };
-  
+
     if (!loading && user) {
       fetchDataFromFirestore();
     }
   }, [loading, user]); // Include dependencies in the dependency array
-  
+
 
   useEffect(() => {
     console.log(page)
@@ -82,7 +82,7 @@ export default function Admin() {
       return null; 
     }
   };
-  
+
 
   const getDay = (fechaSolicitud) => {
     const fireBaseTime = new Date(
@@ -154,13 +154,6 @@ export default function Admin() {
   useEffect(() => {
     checkAuth();
   }, []);
-  //TEST THIS INSTEAD
-
-  // useEffect(() => {
-  //   if (loading) return;
-  //   checkAuth();
-  //   // enter()
-  // }, [user, loading]);
 
   const filterData = async () => {
     try {
@@ -169,6 +162,18 @@ export default function Admin() {
       setpaginatedrecords(rows);
     } catch (error) {
       console.error('Error filtering data:', error);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm("¿Estás seguro de eliminar este cliente?")) {
+      const clienteRef = doc(db, "clientes", id);
+      await deleteDoc(clienteRef);
+
+      // Update data after deletion
+      const newClientesData = clientesData.filter((cliente) => cliente.id !== id);
+      setClientesData(newClientesData);
+      setpaginatedrecords(newClientesData.slice(0, PAGESIZE));
     }
   };
 
@@ -214,215 +219,89 @@ export default function Admin() {
             <button className="btn__admin">
               <Link className="btn__admin__text" to="/login">
                 Volver a login
-              </Link>
+                </Link>
             </button>
-            <button className="btn__admin">
-              <a className="btn__admin__text" onClick={logout} href="/login">
-                Salir
-              </a>
+            <button className="btn__admin" onClick={logout}>
+              Cerrar sesión
             </button>
           </div>
         </div>
       </nav>
-
-      <div className="filter__field__container">
-        <div className="filter__field">
-          <div>
-            <span>
-              Fecha inicial: <input type={"date"} value={startDate} onChange={e => setStartDate(e.target.value)} />
-              Fecha Final: <input type={"date"} value={endDate} onChange={e => setEndDate(e.target.value)} />
-              <button onClick={filterData}>filter</button>
-            </span>
-          </div>
-          <div>
-            <button disabled={clientesData.length === 0} onClick={toExport}>Exportar CSV</button>
-          </div>
-        </div>
-      </div>
-      <div className="filter__field__container">
-        <table style={{
-          borderCollapse: "collapse",
-          width: "70%"
-        }}>
-          <thead>
-            <tr style={{
-              borderBottom: "1px solid black"
-            }}>
-              <th>
-                <div style={headerStyle}>
-                  <div>
-                      Nombre
-                  </div>
-                </div>
-              </th>
-              <th>
-                <div style={headerStyle}>
-                  <div>
-                      Apellido
-                  </div>
-                </div>
-              </th>
-              <th style={{ padding: "1px" }}>Cuil</th>
-              <th>
-                <div style={headerStyle}>
-                  <div>
-                    Teléfono
-                  </div>
-                </div>
-              </th>
-              <th>
-                <div style={headerStyle}>
-                  <div>
-                      Email
-                  </div>
-                </div>
-              </th>
-              <th>
-                <div style={headerStyle}>
-                  <div>
-                      Monto
-                  </div>
-                </div>
-              </th>
-              <th>
-                <div style={headerStyle}>
-                  <div>
-                      Cuotas
-                  </div>
-                </div>
-              </th>
-              <th>
-                <div style={headerStyle}>
-                  Ingreso mensual
-                </div>
-              </th>
-              <th style={{ padding: "10px" }}>Fecha de Ingreso</th>
-              <th style={{ padding: "10px" }}>Estado civil</th>
-              <th>
-                <div style={headerStyle}>
-                  Profesión
-                </div>
-              </th>
-              <th>
-                <div style={headerStyle}>
-                  Hijos
-                </div>
-              </th>
-              <th>
-                <div style={headerStyle}>
-                  Fecha de nacimiento
-                </div>
-              </th>
-              <th>
-                <div style={headerStyle}>
-                  Fecha de carga
-                </div>
-              </th>
-              <th style={{ padding: "10px" }}>DNI Frente</th>
-              <th style={{ padding: "10px" }}>DNI Dorso</th>
-              <th>
-                <div style={headerStyle}>
-                  Retrato + DNI
-                </div>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {clientesData.map((e, index) => (
-              <tr key={index} style={{ borderBottom: "1px solid black" }}>
-                <td style={{ padding: "10px" }}>{e.nombre}</td>
-                <td style={{ padding: "10px" }}>{e.apellido}</td>
-                <td style={{ padding: "10px" }}>{e.cuil}</td>
-                <td style={{ padding: "10px" }}>{e.telefono}</td>
-                <td style={{ padding: "10px" }}>{e.mail}</td>
-                <td style={{ padding: "10px" }}>{e.monto}</td>
-                <td style={{ padding: "10px" }}>{e.cuotas}</td>
-                <td style={{ padding: "10px" }}>{e.ingresoMensual}</td>
-                <td style={{ padding: "10px" }}>{e.fechaIngreso}</td>
-                <td style={{ padding: "10px" }}>{e.estadoCivil}</td>
-                <td style={{ padding: "10px" }}>{e.ocupacion}</td>
-                <td style={{ padding: "10px" }}>{e.hijos === "true" ? "si" : "no"}</td>
-                <td style={{ padding: "10px" }}>{e.fechaNacimiento}</td>
-                <td style={{ padding: "10px" }}>{e.fechaSolicitud}</td>
-                <td style={{ padding: "10px" }}>
-                  <a target="_blank" href={e.dniFrente}>DNI Frente</a>
-                </td>
-                <td style={{ padding: "10px" }}>
-                  <a target="_blank" href={e.dniDorso}>DNI Dorso</a>
-                </td>
-                <td style={{ padding: "10px" }}>
-                  <a target="_blank" href={e.retratoDni}>Retrato + DNI</a>
-                </td>
-              </tr>
-            ))}
-
-          </tbody>
-        </table>
-      </div>
-      <br />
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center'
-      }}>
-        <div style={{
-          width: "80%",
-          display: "flex",
-          justifyContent: "end"
-        }} >
-          <div>
-            <button
-              disabled={page <= 0}
-              onClick={() => {
-                setPage(page - 1 <= 0 ? 0 : page - 1)
-              }}>
-              Ant
+      <div className="main__container">
+        <div className="filter__container">
+          <h2>Filtro de clientes</h2>
+          <div className="input__container">
+            <input
+              className="input__field"
+              type="date"
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+            <span>-</span>
+            <input
+              className="input__field"
+              type="date"
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+            <button className="btn__buscar" onClick={filterData}>
+              Buscar
             </button>
-            <button disabled={
-              (page + 1) * PAGESIZE >= clientesData.length
-            } onClick={() => {
-              setPage(page + 1)
-            }}>Prev</button>
           </div>
         </div>
+        <div className="table__container">
+          <table>
+            <thead>
+              <tr>
+                <th onClick={() => handleSortAscend("id")}>ID</th>
+                <th onClick={() => handleSortAscend("nombre")}>Nombre</th>
+                <th onClick={() => handleSortAscend("apellido")}>Apellido</th>
+                <th onClick={() => handleSortAscend("telefono")}>Teléfono</th>
+                <th onClick={() => handleSortAscend("mail")}>Mail</th>
+                <th onClick={() => handleSortAscend("fechaSolicitud")}>
+                  Fecha Solicitud
+                </th>
+                <th onClick={() => handleSortAscend("estadoCivil")}>
+                  Estado Civil
+                </th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedrecords.map((cliente) => (
+                <tr key={cliente.id}>
+                  <td>{cliente.id}</td>
+                  <td>{cliente.nombre}</td>
+                  <td>{cliente.apellido}</td>
+                  <td>{cliente.telefono}</td>
+                  <td>{cliente.mail}</td>
+                  <td>{getDay(cliente.timestamp)}</td>
+                  <td>{cliente.estadoCivil}</td>
+                  <td>
+                    <button
+                      className="btn__delete"
+                      onClick={() => handleDelete(cliente.id)}
+                    >
+                      Eliminar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="pagination-container">
+            <button 
+            disabled={page === 0} 
+            onClick={() => setPage(page - 1)}>Anterior</button>
+            <span>Página {page + 1} de {Math.ceil(clientesData.length / PAGESIZE)}</span>
+            <button
+              disabled={page === Math.ceil(clientesData.length / PAGESIZE) - 1}
+              onClick={() => setPage(page + 1)}
+            >Siguiente</button>
+          </div>
+        </div>
+        <button className="btn__export" onClick={toExport}>
+          Exportar a CSV
+        </button>
       </div>
-      {show && (
-        <div
-          style={{
-            backgroundColor: "rgba(0,0,0,0.5)",
-            position: "fixed",
-            top: "0",
-            left: "0",
-            width: "100%",
-            height: "100%",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: "white",
-              padding: "20px",
-              borderRadius: "10px",
-              maxWidth: "80%",
-              maxHeight: "80%",
-              overflow: "auto",
-            }}
-          >
-            <h1>{selected.nombre}</h1>
-            <p>Teléfono: {selected.telefono}</p>
-            <p>Ingreso: {selected.cuil}</p>
-            <a href={`mailto:${selected.correo}`}>Correo electrónico</a><br />
-            <p>DNI Frente</p>
-            <img src={`data:image/png;base64, ${selected.dniFrente}`} alt="DNI" />
-            <p>DNI Dorso</p>
-            <img src={`data:image/png;base64, ${selected.dniDorso}`} alt="DNI" />
-            <p>Retrato con DNI</p>
-            <img src={`data:image/jpeg;base64, ${selected.retratoDni}`} alt="Retrato+DNI" />
-            <button onClick={() => setShow(false)}>Cerrar</button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -2,7 +2,6 @@
 
 * {
     font-family: 'Fira Sans', sans-serif, Arial, Helvetica, sans-serif ;
-    /* outline: 0.1px solid rgb(153, 0, 0); */
     margin: 0;
 }
 .datos-personales{
@@ -24,25 +23,45 @@
     background-color: red;
     color: #ffffff;
 }
+.verification__container__panel_right_question {
+    font-size: 1.15rem;
+    font-weight: 600;
+    padding-top: 1rem;
+}
 .verification__container {
     display: flex;
     flex-direction: row;
     justify-content: center;
     align-items: center;
-    margin:auto;
-    padding: 2rem;
-    position: relative;
-    left: 50%;
-    transform: translateX(-50%);
 }
-.verification__container__leftpanel{
-    position: relative;
+.verification__container__panel{
+    flex-direction: row;
+}
+.verification__container__panel_left{
     left: 50%;
     transform: translateX(-50%);
     width: 50vw;
 }
-.verification__container__rightpanel{
-width: 50vw;
+.verification__container__panel_right{
+    width: 40vw;
+    right: 50%;
+    transform: translateX(50%);
+}
+.verification__container__image_img-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%; /* Ajusta según el tamaño de tu contenedor */
+    position: relative; /* Necesario si la imagen necesita estar en un contexto posicionado */
+}
+.verification__container__image_img {
+    width: 60%;
+    object-fit: cover;
+    position: fixed;
+    top: 50%;
+    margin-top: 4rem;
+    border-radius: 25px;
+    box-shadow:  10px 10px 10px rgba(0, 0, 0, 0.4);
 }
 .verification__container h2{
     padding-top: 5rem;
@@ -60,25 +79,13 @@ width: 50vw;
 
 .row {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    width: 30%;
-    /* margin-top: 2rem; */
-    /* CENTER WITHIN THE CONTAINER */
-    position: relative;
-    left: 50%;
-    transform: translateX(-50%);
-
+    width: 100%;
 }
 .row input{
     display: flex;
     flex-direction: row;
-}
-.row button{
-    align-items: center;
-    margin-left: 2rem;
-    width: 70%;
-    margin-bottom: 2rem;
 }
 
 .row input{
@@ -95,7 +102,6 @@ width: 50vw;
 .logo {
     display: flex;
     flex-direction:row-reverse;
-    /* scale: 0.6; */
     margin-top: -12rem;
     justify-content:flex-end;
     position: relative;
@@ -106,7 +112,15 @@ width: 50vw;
     margin-right: -10rem;
 }
 
-.btn {
+.btn__container {
+    position: relative;
+    display: flex;
+    z-index: 2;
+    flex-direction: row;
+    justify-content: center;
+}
+
+.verification__btn {
     background-color: #060a95;
     color: #ffffff;
     border-radius: 25px;
@@ -117,19 +131,58 @@ width: 50vw;
     border: 0;
     margin-top: 1rem;
 }
-
-.btn:hover {
+.verification__btn:hover {
     border: 0;
     background-color: #5366fa;
     color: rgb(248, 248, 248);
-    transform:scale(1.2);
+    transform:scale(0.9);
     transition: cubic-bezier(0.075, 0.82, 0.165, 1);
+}
+
+
+/* Encabezado de la ventana emergente */
+.error-message_header {
+    display: flex; /* Alinea el contenido horizontalmente */
+    align-items: center; /* Centra verticalmente */
+    background-color: #0078d7; /* Fondo azul similar a Windows */
+    color: #ffffff; /* Texto blanco */
+    padding: 10px 15px; /* Espaciado interno */
+    font-size: 16px; /* Tamaño de fuente */
+    font-weight: 600; /* Fuente negrita */
+}
+
+/* Cuerpo del mensaje de error */
+.error-message_body {
+    padding: 20px; /* Espaciado interno */
+    color: #000000; /* Color de texto negro */
+    font-size: 14px; /* Tamaño de fuente */
+}
+
+/* Estilo para el mensaje de error */
+.error-message {
+    padding: 20px; /* Espaciado interno */
+    color: #000000; /* Color de texto negro */
+    font-size: 14px; /* Tamaño de fuente */
+}
+
+.error-message_container {
+    background-color: #ffffff; /* Fondo blanco */
+    border: 1px solid #dcdcdc; /* Borde gris claro */
+    width: 60%;
+    margin: 0 auto;
+    margin-top: 1rem;
+    border-radius: 8px; /* Bordes redondeados */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Sombra suave */
+    z-index: 1000; /* Asegura que esté encima de otros elementos */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Fuente similar a Windows */
+    overflow: hidden; /* Esconde el contenido que se sale del contenedor */
+    display: flex; /* Flexbox para el contenido */
+    flex-direction: column; /* Ordena el contenido en columna */
 }
 
 @media only screen and (max-width: 850px) {
     * {
         font-family: 'Fira Sans', sans-serif, Arial, Helvetica, sans-serif ;
-        overflow: visible ;
         margin: 0;
     }
     .verification__container {
@@ -164,59 +217,22 @@ width: 50vw;
     .logo{
         width: 500px;
     }
-    .btn {
-        color: #320fbf;
-        background-color: white;
-        border: none;
-        padding: 15px 70px 15px 15px;
-        font-size: 16px;
-        cursor: pointer;
-        transition: all 0.2s ease-in-out;
-        text-align:start;
-        box-shadow: 0 4px 8px 0 #000;
-        text-align: center;
-        background-color: #060a95;
-        color: #ffffff;
-    }
-    .btn:hover {
-        border: 0;
-        background-color: #0e154700;
-        color: #1d0a69;
-    }
-    .verification__container__leftpanel{
-        
-        position: relative;
-        left: 0;
-        transform: translateX(0);
-    width: 50vw;
-    }
-    .verification__container__rightpanel{
+    .verification__container__panel_right{
         margin-top: 2rem;
-    }
-    .row button{
-        align-items: center;
-        margin-left: -2rem;
         width: 100%;
-        margin-bottom: 2rem;
+        right: 0%;
+        transform:none;
     }
 
     .row input{
         height: 1rem;
         width: 100%;
     }
-    html,
-    body {
-        height: 100%;
-    }
     .verification__container {
         min-height: 100%;
     }
-    .btn__container {
+    .verification__container__panel_left{
         position: relative;
-        display: flex;
-        z-index: 2;
-        flex-direction: row;
-        justify-content: center;
-        margin-top: -7rem;
+        display: none;
     }
 }

@@ -2,9 +2,9 @@ import "../css/Verification.css";
 import { useNavigate } from "react-router-dom";
 import React, { useEffect, useState } from "react";
 import { db } from "../firebase";
-// import { query, collection, getDocs, where } from "firebase/firestore";
 import { query, collection, getDocs, where, orderBy, Timestamp } from "firebase/firestore";
 import Banner from "../components/Header";
+import verificationImage from "../assets/verification.jpg";
 
 function Verification(props) {
   const navigate = useNavigate();
@@ -18,6 +18,11 @@ function Verification(props) {
     const urlParams = new URLSearchParams(window.location.search);
     const urlCuotas = urlParams.get("cuotas");
     const urlMonto = urlParams.get("monto");
+
+    if(!cuotas){
+      setCuotas('2');
+    }
+
 
     if (urlCuotas) {
       setCuotas(urlCuotas);
@@ -50,6 +55,9 @@ function Verification(props) {
       const q = query(collection(db, 'clientes'), where('cuil', '==', cuil));
       const querySnapshot = await getDocs(q);
 
+      console.log('querySnapshot.size:', querySnapshot.size);
+      console.log('querySnapshot.docs:', querySnapshot.docs);
+
       if (querySnapshot.size > 0) {
         let recentRequest = false;
 
@@ -70,7 +78,8 @@ function Verification(props) {
         if (recentRequest) {
           setCuilError("El CUIL ya fué registrado en los últimos 30 días. Solamente se puede ingresar una solicitud cada 30 días.");
         } else {
-          setCuilError('Timestamp is undefined for document with CUIL:', cuil);
+          setCuilError("");
+          navigate("/clientform", { state: { cuil, cuotas, monto } });
         }
       } else {
         setCuilError("");
@@ -101,8 +110,13 @@ function Verification(props) {
   const handleClienteRecurrente = () => {
     setClienteRecurrente(!clienteRecurrente);
     setMonto(10000); 
-    setCuotas('');
+    setCuotas('2');
   }
+  
+  const closeError = () => {
+    setCuilError("");
+    window.location.reload(); // Refresh the window
+  };
 
   return (
     <div>
@@ -110,7 +124,13 @@ function Verification(props) {
         <Banner />
       </div>
       <div className="verification__container">
-        <div className="verification__container__leftpanel">
+        <div className="verification__container__panel">
+          <div className="verification__container__panel_left">
+            <div className="verification__container__image_img-container">
+              <img className="verification__container__image_img" src={verificationImage} alt="verification" />
+            </div>
+          </div>
+          <div className="verification__container__panel_right">
             <h2>Por favor ingresa tu cuil</h2>
             <input
               className="verification__input"
@@ -118,17 +138,29 @@ function Verification(props) {
               placeholder="Ingresa tu cuil"
               onChange={(e) => setCuil(e.target.value)}
             />
+            <div className="verification__container__panel_right_question">
+              <label className="row">
+                ¿Es usted un cliente recurrente?
+                <input
+                  className="checkbox"
+                  type="checkbox"
+                  checked={clienteRecurrente}
+                  onChange={handleClienteRecurrente}
+                />
+              </label>
+            </div>
             <h2 htmlFor="cuotas">Cantidad de Cuotas:</h2>
             <input
               className="verification__input"
-              placeholder="6 cuotas"
+              placeholder="6"
               id="cuotas"
-              type="number"
+              type="range"
               min="2"
               max={clienteRecurrente ? 12 : 6}
               value={cuotas}
               onChange={handleCuotasChange}
             />
+            <span>{`Cantidad de cuotas: ${cuotas}`}</span>
             <h2 htmlFor="monto">Monto Solicitado:</h2>
             <input
               className="verification__input"
@@ -143,28 +175,27 @@ function Verification(props) {
             />
             <span>{`Monto: $${monto}`}</span>
           </div>
-          <div className="verification__container__rightpanel">
-            <div className="row">
-              <label>
-                ¿Es usted un cliente recurrente?
-                <input
-                  className="checkbox"
-                  type="checkbox"
-                  checked={clienteRecurrente}
-                  onChange={handleClienteRecurrente}
-                />
-              </label>
-            </div>
-            <div className="row">
-              <button
-                className="btn"
-                onClick={checkCuilAvailability}
-              >Solicitar crédito
-              </button>
-            </div>
-          </div>
+        </div>
       </div>
-      {cuilError && <div className="error-message">{cuilError}</div>}
+      <div className="btn__container">
+        <button
+          className="verification__btn"
+          onClick={checkCuilAvailability}
+        >Solicitar crédito
+        </button>
+      </div>
+
+      {cuilError && 
+      <div className="error-message_container">
+      <div className="error-message">
+        <div className="error-message_header">
+          Error
+        </div>
+        <div className="error-message_body">
+      El CUIL ya fué registrado en los últimos 30 días. Solamente se puede ingresar una solicitud cada 30 días.
+        </div>
+      </div>
+    </div>}
     </div>
   );
 }
