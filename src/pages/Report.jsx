@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth, db, deleteDoc, fetchContactsData, logout } from "../firebase";
 import { Link, useNavigate } from "react-router-dom";
-import { query, collection, getDocs, where } from "firebase/firestore";
+import { query, collection, getDocs, where, doc } from "firebase/firestore";
 import '../css/Report.css';
 import Logo from '../assets/logo_textoblanco_fondotransp.png';
 
@@ -29,6 +29,7 @@ export default function Admin() {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const PAGESIZE = 10
 
   useEffect(() => {
@@ -37,7 +38,14 @@ export default function Admin() {
         const clientesCollection = collection(db, 'clientes');
         const querySnapshot = await getDocs(clientesCollection);
         const data = querySnapshot.docs.map((doc) => doc.data());
-        setClientesData(data);
+        
+        if (Array.isArray(data) && data.length > 0) {
+          setClientesData(data);
+          setpaginatedrecords(data.slice(0, PAGESIZE));
+          setTotalPages(Math.ceil(data.length / PAGESIZE));
+        } else {
+          console.warn('Fetched data is not a valid array or is empty.');
+        }
       } catch (error) {
         console.error('Error fetching data from Firestore:', error.message);
       }
@@ -55,7 +63,8 @@ export default function Admin() {
     const max = (page * PAGESIZE) + PAGESIZE
     let _ = clientesData.slice(min, max)
     setpaginatedrecords(_)
-  }, [page])
+    setTotalPages(Math.ceil(clientesData.length / PAGESIZE))
+  }, [page, clientesData])
 
   const checkAuth = async () => {
     if (!user) return navigate("/login");
@@ -144,12 +153,6 @@ export default function Admin() {
     alert("Archivo exportado correctamente")
   }
 
-  useEffect(() => {
-    const min = page * PAGESIZE;
-    const max = page * PAGESIZE + PAGESIZE;
-    let _ = clientesData.slice(min, max);
-    setpaginatedrecords(_);
-  }, [page]);
 
   useEffect(() => {
     checkAuth();
@@ -165,29 +168,46 @@ export default function Admin() {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (cuil) => {
     if (window.confirm("¿Estás seguro de eliminar este cliente?")) {
-      const clienteRef = doc(db, "clientes", id);
-      await deleteDoc(clienteRef);
-
-      // Update data after deletion
-      const newClientesData = clientesData.filter((cliente) => cliente.id !== id);
-      setClientesData(newClientesData);
-      setpaginatedrecords(newClientesData.slice(0, PAGESIZE));
+      try {
+        const docRef = doc(db, "clientes", cuil);
+        await deleteDoc(docRef);
+        setClientesData(prevData => prevData.filter(cliente => cliente.cuil !== cuil));
+        // done
+        setpaginatedrecords(prevRecords => prevRecords.filter(cliente => cliente.cuil !== cuil));
+        alert("Cliente eliminado correctamente");
+      } catch (error) {
+        console.error("Error eliminando el cliente:", error.message);
+        alert("Hubo un error eliminando el cliente. Por favor, inténtalo de nuevo.");
+      }
     }
   };
+  
+  
 
   const handleSortAscend = (key) => {
     //sort on basis of key
+    // console.log(key)
     let _;
-    if (key === "id") {
-      _ = [...paginatedrecords].sort((a, b) => a[key] - b[key]);
-    } else if (key === "timestamp") {
-      _ = [...paginatedrecords].sort(
-        (a, b) => new Date(getTime(a[key])) - new Date(getTime(b[key]))
-      );
+    // if (key === "id") {
+    //   _ = [...paginatedrecords].sort((a, b) => a[key] - b[key]);
+    // } else if (key === "timestamp") {
+    //   _ = [...paginatedrecords].sort(
+    //     (a, b) => new Date(getTime(a[key])) - new Date(getTime(b[key]))
+    //   );
+    // } else {
+    //   _ = [...paginatedrecords].sort((a, b) => (a[key] > b[key] ? 1 : -1));
+    // }
+
+    if (key === 'nombre') {
+      _ = [...paginatedrecords].sort((a, b) => a.nombre.localeCompare(b.nombre));
+    } else if (key === 'apellido') {
+      _ = [...paginatedrecords].sort((a, b) => a.apellido.localeCompare(b.apellido));
+    } else if (key === 'timestamp') {
+      _ = [...paginatedrecords].sort((a, b) => getTime(a[key]) - getTime(b[key]));
     } else {
-      _ = [...paginatedrecords].sort((a, b) => (a[key] > b[key] ? 1 : -1));
+      _ = [...paginatedrecords].sort((a, b) => a[key] - b[key]);
     }
 
 
@@ -251,12 +271,12 @@ export default function Admin() {
           <table>
             <thead>
               <tr>
-                <th onClick={() => handleSortAscend("id")}>ID</th>
+                <th onClick={() => handleSortAscend("cuil")}>ID</th>
                 <th onClick={() => handleSortAscend("nombre")}>Nombre</th>
                 <th onClick={() => handleSortAscend("apellido")}>Apellido</th>
                 <th onClick={() => handleSortAscend("telefono")}>Teléfono</th>
                 <th onClick={() => handleSortAscend("mail")}>Mail</th>
-                <th onClick={() => handleSortAscend("fechaSolicitud")}>
+                <th onClick={() => handleSortAscend("timestamp")}>
                   Fecha Solicitud
                 </th>
                 <th onClick={() => handleSortAscend("estadoCivil")}>
@@ -267,8 +287,8 @@ export default function Admin() {
             </thead>
             <tbody>
               {paginatedrecords.map((cliente) => (
-                <tr key={cliente.id}>
-                  <td>{cliente.id}</td>
+                <tr key={cliente.timestamp.seconds}>
+                  <td>{cliente.cuil}</td>
                   <td>{cliente.nombre}</td>
                   <td>{cliente.apellido}</td>
                   <td>{cliente.telefono}</td>
@@ -278,7 +298,7 @@ export default function Admin() {
                   <td>
                     <button
                       className="btn__delete"
-                      onClick={() => handleDelete(cliente.id)}
+                      onClick={() => handleDelete(cliente.cuil)}
                     >
                       Eliminar
                     </button>
@@ -291,7 +311,7 @@ export default function Admin() {
             <button 
             disabled={page === 0} 
             onClick={() => setPage(page - 1)}>Anterior</button>
-            <span>Página {page + 1} de {Math.ceil(clientesData.length / PAGESIZE)}</span>
+            <span>Página {page + 1} de {totalPages}</span>
             <button
               disabled={page === Math.ceil(clientesData.length / PAGESIZE) - 1}
               onClick={() => setPage(page + 1)}
