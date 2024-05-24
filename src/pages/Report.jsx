@@ -3,8 +3,8 @@ import { useAuthState } from "react-firebase-hooks/auth";
 import { auth, db, deleteDoc, fetchContactsData, logout } from "../firebase";
 import { Link, useNavigate } from "react-router-dom";
 import { query, collection, getDocs, where, doc } from "firebase/firestore";
-import '../css/Report.css';
-import Logo from '../assets/logo_textoblanco_fondotransp.png';
+import "../css/Report.css";
+import Logo from "../assets/logo_textoblanco_fondotransp.png";
 
 const iconStyle = {
   cursor: "pointer",
@@ -18,53 +18,49 @@ const headerStyle = {
   alignItems: "center",
 };
 
-
 export default function Admin() {
   const [user, loading] = useAuthState(auth);
   const navigate = useNavigate();
   const [clientesData, setClientesData] = useState([]);
   const [paginatedrecords, setpaginatedrecords] = useState([]);
-  const [show, setShow] = useState(false);
-  const [selected, setSelected] = useState(null);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const PAGESIZE = 10
+  const [sortMethod, setSortMethod] = useState(""); // New state for sorting method
+  const PAGESIZE = 10;
 
   useEffect(() => {
     const fetchDataFromFirestore = async () => {
       try {
-        const clientesCollection = collection(db, 'clientes');
+        const clientesCollection = collection(db, "clientes");
         const querySnapshot = await getDocs(clientesCollection);
         const data = querySnapshot.docs.map((doc) => doc.data());
-        
+
         if (Array.isArray(data) && data.length > 0) {
           setClientesData(data);
           setpaginatedrecords(data.slice(0, PAGESIZE));
           setTotalPages(Math.ceil(data.length / PAGESIZE));
         } else {
-          console.warn('Fetched data is not a valid array or is empty.');
+          console.warn("Fetched data is not a valid array or is empty.");
         }
       } catch (error) {
-        console.error('Error fetching data from Firestore:', error.message);
+        console.error("Error fetching data from Firestore:", error.message);
       }
     };
 
     if (!loading && user) {
       fetchDataFromFirestore();
     }
-  }, [loading, user]); // Include dependencies in the dependency array
-
+  }, [loading, user]);
 
   useEffect(() => {
-    console.log(page)
-    const min = page * PAGESIZE
-    const max = (page * PAGESIZE) + PAGESIZE
-    let _ = clientesData.slice(min, max)
-    setpaginatedrecords(_)
-    setTotalPages(Math.ceil(clientesData.length / PAGESIZE))
-  }, [page, clientesData])
+    const min = page * PAGESIZE;
+    const max = page * PAGESIZE + PAGESIZE;
+    let _ = clientesData.slice(min, max);
+    setpaginatedrecords(_);
+    setTotalPages(Math.ceil(clientesData.length / PAGESIZE));
+  }, [page, clientesData]);
 
   const checkAuth = async () => {
     if (!user) return navigate("/login");
@@ -77,21 +73,22 @@ export default function Admin() {
     doc.forEach((doc) => {
       data.push(doc.data());
     });
-    let rows = await fetchContactsData()
+    let rows = await fetchContactsData();
     setClientesData(rows);
-    setpaginatedrecords(rows.slice(0, PAGESIZE))
+    setpaginatedrecords(rows.slice(0, PAGESIZE));
   };
 
   const getTime = (fechaSolicitud) => {
     if (fechaSolicitud && fechaSolicitud.seconds !== undefined) {
       const nanoseconds = fechaSolicitud.nanoseconds || 0;
-      const fireBaseTime = new Date(fechaSolicitud.seconds * 1000 + nanoseconds / 1000000);
+      const fireBaseTime = new Date(
+        fechaSolicitud.seconds * 1000 + nanoseconds / 1000000
+      );
       return fireBaseTime;
     } else {
-      return null; 
+      return null;
     }
   };
-
 
   const getDay = (fechaSolicitud) => {
     const fireBaseTime = new Date(
@@ -107,52 +104,37 @@ export default function Admin() {
       "apellido",
       "cuil",
       "telefono",
-      "mail",
       "monto",
       "cuotas",
-      "estadoCivil",
-      "hijos",
-      "ocupacion",
       "ingresoMensual",
       "fechaIngreso",
-      "fechaNacimiento",
       "fechaSolicitud",
-      "dniFrente",
-      "dniDorso",
-      "retratoDni",
-      "\n"
-    ]
-    let csvRows = clientesData.map(e => {
-      let _ = []
-      _[0] = e.nombre
-      _[1] = e.apellido
-      _[2] = e.cuil
-      _[3] = e.telefono
-      _[4] = e.mail
-      _[5] = e.monto
-      _[6] = e.cuotas
-      _[7] = `"${e.estadoCivil}"`
-      _[8] = e.hijos ? e.hijos : ""
-      _[9] = `"${e.ocupacion}"`
-      _[10] = e.ingresoMensual
-      _[11] = `"${e.fechaIngreso}"`
-      _[12] = `"${e.fechaNacimiento}"`
-      _[13] = getTime(e.timestamp)
-      _[14] = e.dniFrente
-      _[15] = e.dniDorso
-      _[16] = e.retratoDni
-      _[17] = "\n"
-      return _
-    })
-    var pom = document.createElement('a');
-    var blob = new Blob([header, ...csvRows], { type: 'text/csv;charset=utf-8;' });
+      "\n",
+    ];
+    let csvRows = clientesData.map((e) => {
+      let _ = [];
+      _[0] = e.nombre;
+      _[1] = e.apellido;
+      _[2] = e.cuil;
+      _[3] = e.telefono;
+      _[4] = e.monto;
+      _[5] = e.cuotas;
+      _[6] = e.ingresoMensual;
+      _[7] = `"${e.fechaIngreso}"`;
+      _[8] = getTime(e.timestamp);
+      _[9] = "\n";
+      return _;
+    });
+    var pom = document.createElement("a");
+    var blob = new Blob([header, ...csvRows], {
+      type: "text/csv;charset=utf-8;",
+    });
     var url = URL.createObjectURL(blob);
     pom.href = url;
-    pom.setAttribute('download', 'download.csv');
+    pom.setAttribute("download", "download.csv");
     pom.click();
-    alert("Archivo exportado correctamente")
-  }
-
+    alert("Archivo exportado correctamente");
+  };
 
   useEffect(() => {
     checkAuth();
@@ -161,10 +143,11 @@ export default function Admin() {
   const filterData = async () => {
     try {
       const rows = await fetchContactsData(startDate, endDate);
+      console.log(startDate, endDate);
       setClientesData(rows);
       setpaginatedrecords(rows);
     } catch (error) {
-      console.error('Error filtering data:', error);
+      console.error("Error filtering data:", error);
     }
   };
 
@@ -173,58 +156,77 @@ export default function Admin() {
       try {
         const docRef = doc(db, "clientes", cuil);
         await deleteDoc(docRef);
-        setClientesData(prevData => prevData.filter(cliente => cliente.cuil !== cuil));
-        // done
-        setpaginatedrecords(prevRecords => prevRecords.filter(cliente => cliente.cuil !== cuil));
+        setClientesData((prevData) =>
+          prevData.filter((cliente) => cliente.cuil !== cuil)
+        );
+        setpaginatedrecords((prevRecords) =>
+          prevRecords.filter((cliente) => cliente.cuil !== cuil)
+        );
         alert("Cliente eliminado correctamente");
       } catch (error) {
         console.error("Error eliminando el cliente:", error.message);
-        alert("Hubo un error eliminando el cliente. Por favor, inténtalo de nuevo.");
+        alert(
+          "Hubo un error eliminando el cliente. Por favor, inténtalo de nuevo."
+        );
       }
     }
   };
-  
-  
 
-  const handleSortAscend = (key) => {
-    //sort on basis of key
-    // console.log(key)
-    let _;
-    // if (key === "id") {
-    //   _ = [...paginatedrecords].sort((a, b) => a[key] - b[key]);
-    // } else if (key === "timestamp") {
-    //   _ = [...paginatedrecords].sort(
-    //     (a, b) => new Date(getTime(a[key])) - new Date(getTime(b[key]))
-    //   );
-    // } else {
-    //   _ = [...paginatedrecords].sort((a, b) => (a[key] > b[key] ? 1 : -1));
-    // }
-
-    if (key === 'nombre') {
-      _ = [...paginatedrecords].sort((a, b) => a.nombre.localeCompare(b.nombre));
-    } else if (key === 'apellido') {
-      _ = [...paginatedrecords].sort((a, b) => a.apellido.localeCompare(b.apellido));
-    } else if (key === 'timestamp') {
-      _ = [...paginatedrecords].sort((a, b) => getTime(a[key]) - getTime(b[key]));
-    } else {
-      _ = [...paginatedrecords].sort((a, b) => a[key] - b[key]);
-    }
-
-
-    setpaginatedrecords(_);
+  const updatePaginatedRecords = (sortedData, newPage = 0) => {
+    setPage(newPage);
+    const start = newPage * PAGESIZE;
+    const end = start + PAGESIZE;
+    setClientesData(sortedData); // Update the main data with sorted data
+    setpaginatedrecords(sortedData.slice(start, end));
   };
-  const handleSortDescend = (key) => {
-    let _;
-    if (key === "id") {
-      _ = [...paginatedrecords].sort((a, b) => b[key] - a[key]);
-    } else if (key === "timestamp") {
-      _ = [...paginatedrecords].sort(
-        (a, b) => new Date(getTime(b[key])) - new Date(getTime(a[key]))
-      );
-    } else {
-      _ = [...paginatedrecords].sort((a, b) => (a[key] > b[key] ? -1 : 1));
-    }
-    setpaginatedrecords(_);
+
+  const sortByIdAscend = () => {
+    const sortedData = [...clientesData].sort((a, b) =>
+      a.cuil.localeCompare(b.cuil)
+    );
+    updatePaginatedRecords(sortedData);
+    setSortMethod("sortByIdAscend");
+  };
+
+  const sortByNombreAscend = () => {
+    const sortedData = [...clientesData].sort((a, b) =>
+      a.nombre.localeCompare(b.nombre)
+    );
+    updatePaginatedRecords(sortedData);
+    setSortMethod("sortByNombreAscend");
+  };
+
+  const sortByApellidoAscend = () => {
+    const sortedData = [...clientesData].sort((a, b) =>
+      a.apellido.localeCompare(b.apellido)
+    );
+    updatePaginatedRecords(sortedData);
+    setSortMethod("sortByApellidoAscend");
+  };
+
+  const sortByTelefonoAscend = () => {
+    const sortedData = [...clientesData].sort((a, b) =>
+      a.telefono.localeCompare(b.telefono)
+    );
+    updatePaginatedRecords(sortedData);
+    setSortMethod("sortByTelefonoAscend");
+  };
+
+  const sortByFechaSolicitudAscend = () => {
+    const sortedData = [...clientesData].sort(
+      (a, b) => getTime(a.timestamp) - getTime(b.timestamp)
+    );
+    updatePaginatedRecords(sortedData);
+    setSortMethod("sortByFechaSolicitudAscend");
+  };
+
+  // create the sort method as to sort descending date
+  const sortByFechaSolicitudDescend = () => {
+    const sortedData = [...clientesData].sort(
+      (a, b) => getTime(b.timestamp) - getTime(a.timestamp)
+    );
+    updatePaginatedRecords(sortedData);
+    setSortMethod("sortByFechaSolicitudDescend");
   };
 
   return (
@@ -239,7 +241,7 @@ export default function Admin() {
             <button className="btn__admin">
               <Link className="btn__admin__text" to="/login">
                 Volver a login
-                </Link>
+              </Link>
             </button>
             <button className="btn__admin" onClick={logout}>
               Cerrar sesión
@@ -249,7 +251,7 @@ export default function Admin() {
       </nav>
       <div className="main__container">
         <div className="filter__container">
-          <h2>Filtro de clientes</h2>
+          <h2>Filtro entradas por fecha</h2>
           <div className="input__container">
             <input
               className="input__field"
@@ -268,38 +270,28 @@ export default function Admin() {
           </div>
         </div>
         <div className="table__container">
+          <h6>Clickea en cada encabezado para ordenarlo por ese valor</h6>
           <table>
             <thead>
               <tr>
-                <th onClick={() => handleSortAscend("cuil")}>ID</th>
-                <th onClick={() => handleSortAscend("nombre")}>Nombre</th>
-                <th onClick={() => handleSortAscend("apellido")}>Apellido</th>
-                <th onClick={() => handleSortAscend("telefono")}>Teléfono</th>
-                <th onClick={() => handleSortAscend("mail")}>Mail</th>
-                <th onClick={() => handleSortAscend("timestamp")}>
-                  Fecha Solicitud
-                </th>
-                <th onClick={() => handleSortAscend("estadoCivil")}>
-                  Estado Civil
-                </th>
-                <th>Acciones</th>
+                <th onClick={sortByIdAscend}>ID</th>
+                <th onClick={sortByNombreAscend}>Nombre</th>
+                <th onClick={sortByApellidoAscend}>Apellido</th>
+                <th onClick={sortByTelefonoAscend}>Telefono</th>
+                <th onClick={sortByFechaSolicitudDescend}>Fecha Solicitud</th>
+                <th>Borrar entrada</th>
               </tr>
             </thead>
             <tbody>
-              {paginatedrecords.map((cliente) => (
-                <tr key={cliente.timestamp.seconds}>
+              {paginatedrecords.map((cliente, index) => (
+                <tr key={index}>
                   <td>{cliente.cuil}</td>
                   <td>{cliente.nombre}</td>
                   <td>{cliente.apellido}</td>
                   <td>{cliente.telefono}</td>
-                  <td>{cliente.mail}</td>
                   <td>{getDay(cliente.timestamp)}</td>
-                  <td>{cliente.estadoCivil}</td>
                   <td>
-                    <button
-                      className="btn__delete"
-                      onClick={() => handleDelete(cliente.cuil)}
-                    >
+                    <button onClick={() => handleDelete(cliente.cuil)}>
                       Eliminar
                     </button>
                   </td>
@@ -308,14 +300,21 @@ export default function Admin() {
             </tbody>
           </table>
           <div className="pagination-container">
-            <button 
-            disabled={page === 0} 
-            onClick={() => setPage(page - 1)}>Anterior</button>
-            <span>Página {page + 1} de {totalPages}</span>
+            <button
+              disabled={page === 0}
+              onClick={() => updatePaginatedRecords(clientesData, page - 1)}
+            >
+              Anterior
+            </button>
+            <span>
+              Página {page + 1} de {totalPages}
+            </span>
             <button
               disabled={page === Math.ceil(clientesData.length / PAGESIZE) - 1}
-              onClick={() => setPage(page + 1)}
-            >Siguiente</button>
+              onClick={() => updatePaginatedRecords(clientesData, page + 1)}
+            >
+              Siguiente
+            </button>
           </div>
         </div>
         <button className="btn__export" onClick={toExport}>
