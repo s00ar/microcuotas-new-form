@@ -16,14 +16,15 @@
     "react-hooks": "^1.0.1",
     "react-icons": "^4.8.0",
     "react-loader-spinner": "^5.3.4",
-    "react-scripts": "^3.0.1",
+    "react-scripts": "^5.0.1",
     "recharts": "^2.5.0",
     "sendgrid": "^5.2.3",
     "styled-components": "^5.3.9",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+    "webpack": "^5.97.1"
   },
   "scripts": {
-    "start": "react-scripts start",
+    "start": "react-scripts start --openssl-legacy-provider",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"

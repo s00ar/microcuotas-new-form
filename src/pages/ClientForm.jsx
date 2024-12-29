@@ -12,9 +12,12 @@ function ClientForm(props) {
   const [telefono, setTelefono] = useState('');
   const [ingresoMensual, setIngresoMensual] = useState('');
   const [fechaIngreso, setFechaIngreso] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSpinner, setShowSpinner] = useState(false);
   const location = useLocation();
   const { cuil, monto, cuotas } = location.state;
   const navigate = useNavigate();
+
   const handleNombreChange = (e) => {
     setNombre(e.target.value);
   };
@@ -24,11 +27,11 @@ function ClientForm(props) {
   };
 
   const handleTelefonoChange = (e) => {
-    if (!isNaN(Number(e.target.value)) ) {
+    if (!isNaN(Number(e.target.value))) {
       setTelefono(e.target.value);
-      } else {
-        alert("El campo de teléfono debe ser un número");
-      }
+    } else {
+      alert("El campo de teléfono debe ser un número");
+    }
   };
 
   const handleIngresoMensualChange = (e) => {
@@ -39,11 +42,9 @@ function ClientForm(props) {
     const startDate = new Date(e.target.value);
     const today = new Date();
     const monthsDiff = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
-  
-    // Valida si la antigüedad es mayor o igual a 6 meses
+
     if (monthsDiff < 6) {
       alert("Debes tener una antigüedad laboral mínima de 6 meses para enviar el formulario");
-      // Evita que se guarde el valor de la fecha
       e.target.value = '';
     } else {
       setFechaIngreso(e.target.value);
@@ -72,28 +73,24 @@ function ClientForm(props) {
       return;
     }
 
-    const today = new Date();
-  
     const startDate = new Date(fechaIngreso);
     const monthsDiff = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
-    
-    // Valida si la antigüedad es mayor o igual a 6 meses
+
     if (monthsDiff < 6) {
       alert("Debes tener una antigüedad laboral mínima de 6 meses para enviar el formulario");
       return;
     }
 
-    // Upload files to Firebase Storage
     if (!telefono.match(/^[11|15]\d{9}$/)) {
       alert("El campo de teléfono debe ser un número de Argentina");
       return;
     }
+
+    setIsSubmitting(true);
+    setShowSpinner(true); // Mostrar spinner inmediatamente después del clic
+
     try {
-
-
-      // Save data to Firebase Firestore
       const clientesCollection = collection(db, 'clientes');
-      //added timestamp with form
       const timestamp = serverTimestamp();
       await addDoc(clientesCollection, {
         nombre,
@@ -108,22 +105,22 @@ function ClientForm(props) {
         timestamp
       });
 
-      // Clear all fields after successful submission
       setNombre('');
       setApellido('');
       setTelefono('');
       setIngresoMensual('');
       setFechaIngreso('');
-      
+
       alert('Datos registrados exitosamente!');
       navigate("/");
-
     } catch (error) {
       console.error('Error submitting data:', error);
       alert('An error occurred while submitting data');
+    } finally {
+      setIsSubmitting(false);
+      setShowSpinner(false); // Ocultar spinner al finalizar el proceso
     }
   };
-
 
   return (
     <div className='main'>
@@ -132,7 +129,7 @@ function ClientForm(props) {
       </div>
       <h1 className='firsth1'>Solicitá tu crédito</h1>
       <form onSubmit={handleSubmit}>
-        <div className='form__container' >
+        <div className='form__container'>
           <div className='form__container__leftpanel'>
             <h3 className='user__data'>
               <label>
@@ -160,15 +157,12 @@ function ClientForm(props) {
               <input type="text" value={nombre} onChange={handleNombreChange} />
             </label>
 
-
             <label>
               Apellido:
               <input type="text" value={apellido} onChange={handleApellidoChange} />
             </label>
-
           </div>
           <div className='form__container__rightpanel'>
-            
             <label>
               Teléfono:
               <input type="tel" value={telefono} onChange={handleTelefonoChange} />
@@ -185,26 +179,17 @@ function ClientForm(props) {
             </label>
           </div>
         </div>
-        <button className='form__btn' type="submit">Enviar</button>
+        <button className='form__btn' type="submit" disabled={isSubmitting}>
+          {showSpinner ? <span className="spinner">Procesando...</span> : 'Enviar'}
+        </button>
         <div className="statement__text">
           <p>
-
-
-            Una vez que su solicitud de crédito sea aprobada por nuestro equipo de evaluación, un representante comercial de Microcuotas se comunicará con usted para solicitarle cualquier documentación adicional necesaria.
-
-          La transferencia del dinero se realizará previa firma del solicitante en la sucursal de Microcuotas, donde se le entregará su carpeta de crédito con todos los detalles de su préstamo.
-
-          Este texto podría ampliarse de la siguiente manera:
-
-          Una vez que Microcuotas reciba la documentación solicitada, se procederá a la transferencia del dinero a su cuenta bancaria. La transferencia se realizará en un plazo máximo de 24 horas hábiles.
-
-          Para completar la transferencia, deberá firmar su carpeta de crédito en la sucursal de Microcuotas. En la carpeta de crédito encontrará todos los detalles de su préstamo, como el monto, el plazo, la tasa de interés y las cuotas.
-
+            Una vez que su solicitud de crédito sea aprobada por nuestro equipo de evaluación, un representante comercial de Microcuotas se comunicará con usted para solicitar cualquier documentación adicional necesaria. La transferencia del dinero se realizará previa firma del solicitante en la sucursal de Microcuotas. Donde se le entregará la carpeta de crédito con todos los detalles de su préstamo.
           </p>
         </div>
       </form>
     </div>
   );
-};
+}
 
 export default ClientForm;

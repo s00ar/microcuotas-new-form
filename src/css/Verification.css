@@ -4,6 +4,15 @@
     font-family: 'Fira Sans', sans-serif, Arial, Helvetica, sans-serif ;
     margin: 0;
 }
+.version-text{
+    font-size: 1rem;
+    color: #bdbdbd;
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    padding: 1rem;
+    z-index: 999;
+}
 .datos-personales{
     text-align: center;
     padding: 1rem;

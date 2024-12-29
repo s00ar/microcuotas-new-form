@@ -2,7 +2,7 @@ import "../css/Verification.css";
 import { useNavigate } from "react-router-dom";
 import React, { useEffect, useState } from "react";
 import { db } from "../firebase";
-import { query, collection, getDocs, where, orderBy, Timestamp } from "firebase/firestore";
+import { query, collection, getDocs, where } from "firebase/firestore";
 import Banner from "../components/Header";
 import verificationImage from "../assets/verification.jpg";
 
@@ -13,16 +13,16 @@ function Verification(props) {
   const [cuotas, setCuotas] = useState('');
   const [monto, setMonto] = useState(10000);
   const [clienteRecurrente, setClienteRecurrente] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // Estado para el spinner
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const urlCuotas = urlParams.get("cuotas");
     const urlMonto = urlParams.get("monto");
 
-    if(!cuotas){
+    if (!cuotas) {
       setCuotas('2');
     }
-
 
     if (urlCuotas) {
       setCuotas(urlCuotas);
@@ -33,54 +33,51 @@ function Verification(props) {
   }, []);
 
   const checkCuilAvailability = async () => {
+    setIsLoading(true); // Muestra el spinner al hacer clic en el botón
     try {
       if (!cuil) {
         setCuilError("CUIL no puede estar en blanco");
+        setIsLoading(false);
         return;
       }
       if (!monto) {
         setCuilError("El monto no puede estar en blanco");
+        setIsLoading(false);
         return;
       }
       if (!cuotas) {
         setCuilError("La cantidad de cuotas no puede estar en blanco");
+        setIsLoading(false);
         return;
       }
 
       if (cuil.length !== 11) {
         setCuilError("Ingresa un CUIL válido");
+        setIsLoading(false);
         return;
       }
 
       const q = query(collection(db, 'clientes'), where('cuil', '==', cuil));
       const querySnapshot = await getDocs(q);
 
-      console.log('querySnapshot.size:', querySnapshot.size);
-      console.log('querySnapshot.docs:', querySnapshot.docs);
+      let recentRequest = false;
 
-      if (querySnapshot.size > 0) {
-        let recentRequest = false;
+      querySnapshot.forEach((doc) => {
+        const timestampData = doc.data().timestamp;
+        const timestamp = timestampData ? timestampData.toDate() : null;
 
-        querySnapshot.forEach((doc) => {
-          const timestampData = doc.data().timestamp;
-          const timestamp = timestampData ? timestampData.toDate() : null;
-
-          if (timestamp) {
-            const last30Days = 30 * 24 * 60 * 60 * 1000;
-            if (Date.now() - timestamp.getTime() < last30Days) {
-              recentRequest = true;
-            }
-          } else {
-            console.error('Timestamp is undefined for document with CUIL:', cuil);
+        if (timestamp) {
+          const last30Days = 30 * 24 * 60 * 60 * 1000;
+          if (Date.now() - timestamp.getTime() < last30Days) {
+            recentRequest = true;
           }
-        });
-
-        if (recentRequest) {
-          setCuilError("El CUIL ya fué registrado en los últimos 30 días. Solamente se puede ingresar una solicitud cada 30 días.");
         } else {
-          setCuilError("");
-          navigate("/clientform", { state: { cuil, cuotas, monto } });
+          console.error('Timestamp is undefined for document with CUIL:', cuil);
         }
+      });
+
+      if (recentRequest) {
+        setCuilError("El CUIL ya fue registrado en los últimos 30 días. Solamente se puede ingresar una solicitud cada 30 días.");
       } else {
         setCuilError("");
         navigate("/clientform", { state: { cuil, cuotas, monto } });
@@ -88,6 +85,8 @@ function Verification(props) {
     } catch (error) {
       console.error('Error checking CUIL availability:', error);
       setCuilError("Ocurrió un error al verificar el CUIL. Inténtelo de nuevo más tarde.");
+    } finally {
+      setIsLoading(false); // Oculta el spinner al finalizar el proceso
     }
   };
 
@@ -111,7 +110,7 @@ function Verification(props) {
     setClienteRecurrente(!clienteRecurrente);
     setMonto(10000); 
     setCuotas('2');
-  }
+  };
   
   const closeError = () => {
     setCuilError("");
@@ -181,7 +180,9 @@ function Verification(props) {
         <button
           className="verification__btn"
           onClick={checkCuilAvailability}
-        >Solicitar crédito
+          disabled={isLoading} // Deshabilitar botón mientras se carga
+        >
+          {isLoading ? <span className="spinner">Cargando...</span> : "Solicitar crédito"}
         </button>
       </div>
 
@@ -192,10 +193,15 @@ function Verification(props) {
           Error
         </div>
         <div className="error-message_body">
-      El CUIL ya fué registrado en los últimos 30 días. Solamente se puede ingresar una solicitud cada 30 días.
+      El CUIL ya fue registrado en los últimos 30 días. Solamente se puede ingresar una solicitud cada 30 días.
         </div>
       </div>
     </div>}
+    
+          {/* version actual del software */}
+          <p className="version-text">
+            v2.0.1
+          </p>
     </div>
   );
 }
