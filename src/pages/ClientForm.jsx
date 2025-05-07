@@ -81,8 +81,10 @@ function ClientForm(props) {
       return;
     }
 
-    if (!telefono.match(/^[11|15]\d{9}$/)) {
-      alert("El campo de teléfono debe ser un número de Argentina");
+    const telefonoLimpio = telefono.replace(/[\s\-()+]/g, '');
+
+    if (!telefonoLimpio.match(/^(\+54)?\d{10}$/)) {
+      alert("Ingrese un número de teléfono argentino válido");
       return;
     }
 
@@ -98,7 +100,7 @@ function ClientForm(props) {
         cuil,
         monto,
         cuotas,
-        telefono,
+        telefono: telefonoLimpio,
         ingresoMensual,
         fechaIngreso,
         fechaSolicitud,

@@ -11,8 +11,7 @@ function Verification(props) {
   const [cuil, setCuil] = useState("");
   const [cuilError, setCuilError] = useState('');
   const [cuotas, setCuotas] = useState('');
-  const [monto, setMonto] = useState(10000);
-  const [clienteRecurrente, setClienteRecurrente] = useState(false);
+  const [monto, setMonto] = useState(500000);
   const [isLoading, setIsLoading] = useState(false); // Estado para el spinner
 
   useEffect(() => {
@@ -21,7 +20,7 @@ function Verification(props) {
     const urlMonto = urlParams.get("monto");
 
     if (!cuotas) {
-      setCuotas('2');
+      setCuotas('12');
     }
 
     if (urlCuotas) {
@@ -92,24 +91,16 @@ function Verification(props) {
 
   const handleCuotasChange = (e) => {
     const newValue = parseInt(e.target.value);
-    if (!clienteRecurrente && newValue >= 2 && newValue <= 6) {
-      setCuotas(newValue);
-    } else if (clienteRecurrente && newValue >= 2 && newValue <= 12) {
+    if (newValue >= 2 && newValue <= 12) {
       setCuotas(newValue);
     }
   };
 
   const handleMontoChange = (e) => {
     const newValue = parseInt(e.target.value);
-    if ((!clienteRecurrente && newValue >= 10000 && newValue <= 125000) || (clienteRecurrente && newValue >= 10000 && newValue <= 250000)) {
+    if (newValue >= 100000 && newValue <= 500000) {
       setMonto(newValue);
     }
-  };
-
-  const handleClienteRecurrente = () => {
-    setClienteRecurrente(!clienteRecurrente);
-    setMonto(10000); 
-    setCuotas('2');
   };
   
   const closeError = () => {
@@ -137,25 +128,14 @@ function Verification(props) {
               placeholder="Ingresa tu cuil"
               onChange={(e) => setCuil(e.target.value)}
             />
-            <div className="verification__container__panel_right_question">
-              <label className="row">
-                ¿Es usted un cliente recurrente?
-                <input
-                  className="checkbox"
-                  type="checkbox"
-                  checked={clienteRecurrente}
-                  onChange={handleClienteRecurrente}
-                />
-              </label>
-            </div>
             <h2 htmlFor="cuotas">Cantidad de Cuotas:</h2>
             <input
               className="verification__input"
-              placeholder="6"
+              placeholder="12"
               id="cuotas"
               type="range"
               min="2"
-              max={clienteRecurrente ? 12 : 6}
+              max="12"
               value={cuotas}
               onChange={handleCuotasChange}
             />
@@ -163,11 +143,11 @@ function Verification(props) {
             <h2 htmlFor="monto">Monto Solicitado:</h2>
             <input
               className="verification__input"
-              placeholder="$100.000 pesos"
+              placeholder="500000"
               id="monto"
               type="range"
-              min="10000"
-              max={clienteRecurrente ? 250000 : 125000}
+              min="100000"
+              max="500000"
               step="5000"
               value={monto}
               onChange={handleMontoChange}
@@ -200,7 +180,7 @@ function Verification(props) {
     
           {/* version actual del software */}
           <p className="version-text">
-            v2.0.1
+            v2.0.2
           </p>
     </div>
   );
