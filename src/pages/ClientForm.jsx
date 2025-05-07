@@ -83,8 +83,8 @@ function ClientForm(props) {
 
     const telefonoLimpio = telefono.replace(/[\s\-()+]/g, '');
 
-    if (!telefonoLimpio.match(/^(\+54)?\d{10}$/)) {
-      alert("Ingrese un número de teléfono argentino válido");
+    if (!telefonoLimpio.match(/^(\+54)?\d{10,11}$/)) {
+      alert("Ingrese un número de teléfono argentino válido.\nEjemplos válidos:\n- 3514567890\n- 1134567890\n- +5491123456789");
       return;
     }
 
