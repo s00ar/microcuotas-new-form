@@ -11,6 +11,7 @@
     margin: auto;
 }
 .login__buttons button{
+    width: 100% !important;
     font-size: 1.3rem;
     padding: 1rem;
     border-radius: 25px;

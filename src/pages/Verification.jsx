@@ -6,14 +6,51 @@ import { query, collection, getDocs, where } from "firebase/firestore";
 import Banner from "../components/Header";
 import verificationImage from "../assets/verification.jpg";
 
+// ⚡ Importa la función de suscripción a parámetros de simulación
+import { subscribeToSimulationParams } from "../firebase";
+
 function Verification(props) {
   const navigate = useNavigate();
   const [cuil, setCuil] = useState("");
   const [cuilError, setCuilError] = useState('');
   const [cuotas, setCuotas] = useState('');
-  const [monto, setMonto] = useState(500000);
+  const [monto, setMonto] = useState('');
   const [isLoading, setIsLoading] = useState(false); // Estado para el spinner
 
+  // ⚡ Estado para guardar los valores mínimos y máximos traídos desde Firebase
+  const [simParams, setSimParams] = useState({
+    minCuotas: 2,
+    maxCuotas: 12,
+    minMonto: 50000,
+    maxMonto: 500000,
+  });
+
+  // ⚡ Suscribirse a cambios en Firestore al montar el componente
+  useEffect(() => {
+    const unsubscribe = subscribeToSimulationParams(
+      params => {
+        setSimParams({
+          minCuotas: params.minCuotas,
+          maxCuotas: params.maxCuotas,
+          minMonto: params.minMonto,
+          maxMonto: params.maxMonto,
+        });
+        // Opcional: ajustar valores actuales si quedaron fuera de rango
+        setCuotas(prev => {
+          const v = prev || params.maxCuotas;
+          return Math.min(Math.max(v, params.minCuotas), params.maxCuotas);
+        });
+        setMonto(prev => {
+          const v = prev || params.minMonto;
+          return Math.min(Math.max(v, params.minMonto), params.maxMonto);
+        });
+      },
+      err => console.error("Error simul Params:", err)
+    );
+    return () => unsubscribe();
+  }, []);
+
+  // Mantén este useEffect para leer query params sólo la primera vez
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const urlCuotas = urlParams.get("cuotas");
@@ -89,23 +126,24 @@ function Verification(props) {
     }
   };
 
+  // ⚡ Manejo de cambio usando los rangos dinámicos
   const handleCuotasChange = (e) => {
-    const newValue = parseInt(e.target.value);
-    if (newValue >= 2 && newValue <= 12) {
+    const newValue = parseInt(e.target.value, 10);
+    if (newValue >= simParams.minCuotas && newValue <= simParams.maxCuotas) {
       setCuotas(newValue);
     }
   };
 
   const handleMontoChange = (e) => {
-    const newValue = parseInt(e.target.value);
-    if (newValue >= 100000 && newValue <= 500000) {
+    const newValue = parseInt(e.target.value, 10);
+    if (newValue >= simParams.minMonto && newValue <= simParams.maxMonto) {
       setMonto(newValue);
     }
   };
-  
+
   const closeError = () => {
     setCuilError("");
-    window.location.reload(); // Refresh the window
+    window.location.reload();
   };
 
   return (
@@ -128,26 +166,28 @@ function Verification(props) {
               placeholder="Ingresa tu cuil"
               onChange={(e) => setCuil(e.target.value)}
             />
+
             <h2 htmlFor="cuotas">Cantidad de Cuotas:</h2>
+            {/* ⚡ Aquí se usan los valores min/max traídos de Firebase */}
             <input
               className="verification__input"
-              placeholder="12"
               id="cuotas"
               type="range"
-              min="2"
-              max="12"
+              min={simParams.minCuotas}
+              max={simParams.maxCuotas}
               value={cuotas}
               onChange={handleCuotasChange}
             />
             <span>{`Cantidad de cuotas: ${cuotas}`}</span>
+
             <h2 htmlFor="monto">Monto Solicitado:</h2>
+            {/* ⚡ Aquí se usan los valores min/max traídos de Firebase */}
             <input
               className="verification__input"
-              placeholder="500000"
               id="monto"
               type="range"
-              min="100000"
-              max="500000"
+              min={simParams.minMonto}
+              max={simParams.maxMonto}
               step="5000"
               value={monto}
               onChange={handleMontoChange}
@@ -160,28 +200,22 @@ function Verification(props) {
         <button
           className="verification__btn"
           onClick={checkCuilAvailability}
-          disabled={isLoading} // Deshabilitar botón mientras se carga
+          disabled={isLoading}
         >
           {isLoading ? <span className="spinner">Cargando...</span> : "Solicitar crédito"}
         </button>
       </div>
 
       {cuilError && 
-      <div className="error-message_container">
-      <div className="error-message">
-        <div className="error-message_header">
-          Error
+        <div className="error-message_container">
+          <div className="error-message">
+            <div className="error-message_header">Error</div>
+            <div className="error-message_body">{cuilError}</div>
+          </div>
         </div>
-        <div className="error-message_body">
-      El CUIL ya fue registrado en los últimos 30 días. Solamente se puede ingresar una solicitud cada 30 días.
-        </div>
-      </div>
-    </div>}
-    
-          {/* version actual del software */}
-          <p className="version-text">
-            v2.0.2
-          </p>
+      }
+
+      <p className="version-text">v3</p>
     </div>
   );
 }

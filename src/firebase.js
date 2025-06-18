@@ -5,17 +5,21 @@ import {
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     sendPasswordResetEmail,
-    signOut,
+    signOut
 } from "firebase/auth";
 import {
-    query,
-    getDocs,
-    where,
-    getFirestore,
-    collection,
-    addDoc,
-    deleteDoc,
-    orderBy
+  getFirestore,
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  deleteDoc,
+  orderBy,
+  doc,
+  getDoc,
+  updateDoc,
+  onSnapshot
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, getStorage } from "firebase/storage";
 
@@ -29,11 +33,71 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-// const db = getDatabase(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
 const db = getFirestore(app);
 
+
+// ID fijo del documento en Firestore donde guardamos los parámetros
+const SIM_DOC = "simulationParams";
+
+
+// retrieves simulation parameters from firebase firestore from the config collection
+
+
+/**
+ * Lee una única vez los parámetros de simulación desde config/SIM_DOC.
+ */
+export async function getSimulationParams() {
+  const refDoc = doc(db, "config", SIM_DOC);
+  const snap   = await getDoc(refDoc);
+  if (!snap.exists()) throw new Error("No existe config/simulationParams");
+
+  const data = snap.data();
+  return {
+    minCuotas:         data.minCuotas,
+    maxCuotas:         data.maxCuotas,
+    minMonto:          data.minMonto,
+    maxMonto:          data.maxMonto,
+    interesesPorCuota: data.interesesPorCuota || {},  // <— aquí
+  };
+}
+
+/**
+ * Se suscribe y entrega TODO el objeto (map incluido)
+ */
+export function subscribeToSimulationParams(cb, onError) {
+  const refDoc = doc(db, "config", SIM_DOC);
+  return onSnapshot(
+    refDoc,
+    snap => {
+      if (!snap.exists()) return onError?.(new Error("missing doc"));
+      const data = snap.data();
+      cb({
+        minCuotas:         data.minCuotas,
+        maxCuotas:         data.maxCuotas,
+        minMonto:          data.minMonto,
+        maxMonto:          data.maxMonto,
+        interesesPorCuota: data.interesesPorCuota || {},
+      });
+    },
+    onError
+  );
+}
+
+/**
+ * Guarda TODO, map incluido
+ */
+export async function updateSimulationParams(params) {
+  const refDoc = doc(db, "config", SIM_DOC);
+  await updateDoc(refDoc, {
+    minCuotas:         params.minCuotas,
+    maxCuotas:         params.maxCuotas,
+    minMonto:          params.minMonto,
+    maxMonto:          params.maxMonto,
+    interesesPorCuota: params.interesesPorCuota,
+  });
+}
 
 const logInWithEmailAndPassword = async (email, password) => {
   try {
@@ -43,6 +107,7 @@ const logInWithEmailAndPassword = async (email, password) => {
       alert(err.message);
   }
 };
+
 const registerWithEmailAndPassword = async (name, email, password, role) => {
 try {
   const res = await createUserWithEmailAndPassword(auth, email, password);

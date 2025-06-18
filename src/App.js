@@ -6,6 +6,7 @@ import Register from "./pages/Register";
 import Report from "./pages/Report";
 import Verification from "./pages/Verification";
 import ClientForm from './pages/ClientForm';
+import Options from './pages/Options';
 import './css/App.css';
 import firebaseApp from "./firebase";
 
@@ -20,6 +21,7 @@ const App = () => {
           <Routes>
             <Route exact path="/" element={<Verification/>} />
             <Route path="/clientform" element={<ClientForm cuil={cuil} />} /> {/* Pass cuil as a prop */}
+            <Route exact path="/options" element={<Options />} />
             <Route exact path="/login" element={<Login />} />
             <Route exact path="/reset" element={<Reset />} />
             <Route exact path="/register" element={<Register />} />
