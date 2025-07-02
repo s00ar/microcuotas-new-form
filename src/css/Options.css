@@ -1,0 +1,16 @@
+.admin__title__card {
+  display: flex;
+  flex-direction: row;
+  justify-content:flex-end ;
+  width: 100%;
+}
+
+.admin__title {
+  color: rgb(83, 182, 248);
+  font-size: 2rem;
+  text-shadow: 2px 2px 2px #6b6a6a;
+  padding: 2rem;
+  text-align: center;
+  font-weight: 700;
+  text-transform: uppercase;
+}

@@ -4,9 +4,7 @@ import React, { useEffect, useState } from "react";
 import { db } from "../firebase";
 import { query, collection, getDocs, where } from "firebase/firestore";
 import Banner from "../components/Header";
-import verificationImage from "../assets/verification.jpg";
-
-// ⚡ Importa la función de suscripción a parámetros de simulación
+import LottieAnim from "../components/LottieAnim";
 import { subscribeToSimulationParams } from "../firebase";
 
 function Verification(props) {
@@ -145,7 +143,6 @@ function Verification(props) {
     setCuilError("");
     window.location.reload();
   };
-
   return (
     <div>
       <div className="banner__container">
@@ -155,7 +152,10 @@ function Verification(props) {
         <div className="verification__container__panel">
           <div className="verification__container__panel_left">
             <div className="verification__container__image_img-container">
-              <img className="verification__container__image_img" src={verificationImage} alt="verification" />
+              <LottieAnim
+                width={600}
+                height={600}
+              />
             </div>
           </div>
           <div className="verification__container__panel_right">
@@ -215,7 +215,7 @@ function Verification(props) {
         </div>
       }
 
-      <p className="version-text">v3</p>
+      <p className="version-text">v3.2</p>
     </div>
   );
 }

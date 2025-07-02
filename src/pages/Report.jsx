@@ -5,6 +5,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { query, collection, getDocs, where, doc } from "firebase/firestore";
 import "../css/Report.css";
 import Logo from "../assets/logo_textoblanco_fondotransp.png";
+import Banner from "../components/Header-Loged";
 
 const iconStyle = {
   cursor: "pointer",
@@ -231,21 +232,13 @@ export default function Admin() {
 
   return (
     <div className="admin-background">
+        <div className="banner__container">
+            <Banner />
+        </div>
       <nav className="nav__container">
         <div className="innderNav">
           <div className="admin__title__card">
-            <img className="admin__logo" src={Logo} />
             <h2 className="admin__title">Herramienta de Reportes</h2>
-          </div>
-          <div className="admin__button__container">
-            <button className="btn__admin">
-              <Link className="btn__admin__text" to="/login">
-                Volver a login
-              </Link>
-            </button>
-            <button className="btn__admin" onClick={logout}>
-              Cerrar sesión
-            </button>
           </div>
         </div>
       </nav>

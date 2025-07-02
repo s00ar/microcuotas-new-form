@@ -5,6 +5,7 @@ import {
   getSimulationParams,
   updateSimulationParams
 } from '../firebase'
+import Banner from "../components/Header-Loged";
 
 export default function Options() {
   const navigate = useNavigate()
@@ -77,8 +78,15 @@ export default function Options() {
   )
 
   return (
+    
+    <div>
+        <div className="banner__container">
+            <Banner />
+        </div>
     <div style={{ padding: 20, fontFamily: 'Arial, sans-serif' }}>
-      <h1>Opciones del Sistema</h1>
+      <div className="admin__title__card">
+        <h2 className="admin__title">Opciones del Sistema</h2>
+      </div>
       <form onSubmit={handleSubmit}>
         <fieldset style={{ marginBottom: 20, padding: 10 }}>
           <legend>Rangos de Cuotas y Montos</legend>
@@ -185,5 +193,6 @@ export default function Options() {
         </button>
       </form>
     </div>
+  </div>
   )
 }
