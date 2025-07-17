@@ -39,19 +39,73 @@ export default function ClientForm() {
   };
   const handleIngresoMensualChange = e => setIngresoMensual(e.target.value);
   const handleAntiguedadChange = e => {
-    const start = new Date(e.target.value);
-    const diffMeses = Math.floor((Date.now() - start.getTime()) / (1000*60*60*24*30));
-    if (diffMeses < 6) {
-      alert("Debes tener una antigüedad laboral mínima de 6 meses");
-      e.target.value = '';
-    } else setFechaIngreso(e.target.value);
-  };
+  const ingresoStr = e.target.value;
+  const ingresoDate = new Date(ingresoStr);
+
+  // 1) Verifico que haya ingresado antes su fecha de nacimiento
+  if (!fechaNacimiento) {
+    alert("Primero ingresa tu fecha de nacimiento");
+    e.target.value = '';
+    return;
+  }
+
+  // 2) Creo la fecha mínima de ingreso = fechaNacimiento + 18 años
+  const [yyyy, mm, dd] = fechaNacimiento.split('-');
+  const birthDate = new Date(`${yyyy}-${mm}-${dd}`);
+  const minIngresoDate = new Date(birthDate);
+  minIngresoDate.setFullYear(minIngresoDate.getFullYear() + 18);
+
+  if (ingresoDate < minIngresoDate) {
+    alert("La fecha de ingreso no puede ser anterior a tu fecha de nacimiento más 18 años");
+    e.target.value = '';
+    setFechaIngreso('');
+    return;
+  }
+
+  // 3) Calculo antigüedad en meses
+  const diffMeses = Math.floor((Date.now() - ingresoDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
+  if (diffMeses < 6) {
+    alert("Debes tener una antigüedad laboral mínima de 6 meses");
+    e.target.value = '';
+    setFechaIngreso('');
+    return;
+  }
+
+  // 4) Si todo OK, guardo la fecha
+  setFechaIngreso(ingresoStr);
+};
+  // Nota: No es necesario validar el formato de fecha aquí, ya que el input type="date" lo maneja automáticamente
 
   // Nuevos manejadores
   const handleFechaNacimientoChange = e => {
-    const val = e.target.value;
-    setFechaNacimiento(val); // Si está vacío, simplemente actualiza el estado
+    const val = e.target.value;               // “YYYY-MM-DD” desde el input
+    if (!val) {                               // Si limpiaron el campo, simplemente actualiza
+      setFechaNacimiento('');
+      return;
+    }
+
+    const birthDate = new Date(val);
+    const today     = new Date();
+
+    // 1) Calcula la fecha límite: hoy - 18 años - 6 meses
+    const minAllowed = new Date(today);
+    minAllowed.setFullYear(minAllowed.getFullYear() - 18);
+    // setFullYear no afecta al mes, así que restamos 6 meses aparte:
+    minAllowed.setMonth(minAllowed.getMonth() - 6);
+
+    // 2) Si la fecha de nacimiento es posterior a esa fecha límite, recházala
+    if (birthDate > minAllowed) {
+      alert("Debes tener al menos 18 años y 6 meses de edad");
+      e.target.value = '';       // limpia el input
+      setFechaNacimiento('');    // limpia el estado
+      return;
+    }
+
+    // 3) Si todo OK, guarda la fecha
+    setFechaNacimiento(val);
   };
+
+
   const handleEmailChange = e => setEmail(e.target.value);
   const handlePasswordChange = e => setPassword(e.target.value);
 
@@ -235,15 +289,6 @@ export default function ClientForm() {
               <input type="number" value={ingresoMensual} onChange={handleIngresoMensualChange} />
             </label>
             <label>
-              Fecha de Ingreso (Antigüedad):
-              <input
-                type="date" 
-                placeholder="DD/MM/AAAA"
-                value={fechaIngreso} 
-                onChange={handleAntiguedadChange             
-                } />
-            </label>
-            <label>
               Fecha de Nacimiento (DD/MM/AAAA):
               <input
                 type="date" 
@@ -251,6 +296,15 @@ export default function ClientForm() {
                 value={fechaNacimiento} 
                 onChange={handleFechaNacimientoChange}
               />
+            </label>
+            <label>
+              Fecha de Ingreso (Antigüedad):
+              <input
+                type="date" 
+                placeholder="DD/MM/AAAA"
+                value={fechaIngreso} 
+                onChange={handleAntiguedadChange             
+                } />
             </label>
           </div>
         </div>

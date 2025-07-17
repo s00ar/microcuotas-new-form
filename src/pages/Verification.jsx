@@ -14,6 +14,9 @@ function Verification(props) {
   const [cuotas, setCuotas] = useState('');
   const [monto, setMonto] = useState('');
   const [isLoading, setIsLoading] = useState(false); // Estado para el spinner
+  const formatMiles = num =>
+    num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
 
   // ⚡ Estado para guardar los valores mínimos y máximos traídos desde Firebase
   const [simParams, setSimParams] = useState({
@@ -166,6 +169,20 @@ function Verification(props) {
               placeholder="Ingresa tu cuil"
               onChange={(e) => setCuil(e.target.value)}
             />
+            <h2 htmlFor="monto">Monto Solicitado:</h2>
+            {/* ⚡ Aquí se usan los valores min/max traídos de Firebase */}
+            <input
+              className="verification__input"
+              id="monto"
+              type="range"
+              min={simParams.minMonto}
+              max={simParams.maxMonto}
+              step="5000"
+              value={monto}
+              onChange={handleMontoChange}
+            />
+            {/* <span>{`Monto: $${monto}`}</span> */}
+            <span>{`Monto: $${formatMiles(monto)}`}</span>
 
             <h2 htmlFor="cuotas">Cantidad de Cuotas:</h2>
             {/* ⚡ Aquí se usan los valores min/max traídos de Firebase */}
@@ -179,20 +196,6 @@ function Verification(props) {
               onChange={handleCuotasChange}
             />
             <span>{`Cantidad de cuotas: ${cuotas}`}</span>
-
-            <h2 htmlFor="monto">Monto Solicitado:</h2>
-            {/* ⚡ Aquí se usan los valores min/max traídos de Firebase */}
-            <input
-              className="verification__input"
-              id="monto"
-              type="range"
-              min={simParams.minMonto}
-              max={simParams.maxMonto}
-              step="5000"
-              value={monto}
-              onChange={handleMontoChange}
-            />
-            <span>{`Monto: $${monto}`}</span>
           </div>
         </div>
       </div>
