@@ -1,11 +1,13 @@
+// src/firebase.js
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import {
-    getAuth,
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
-    sendPasswordResetEmail,
-    signOut
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signOut,
+  signInAnonymously,
 } from "firebase/auth";
 import {
   getFirestore,
@@ -19,10 +21,14 @@ import {
   doc,
   getDoc,
   updateDoc,
-  onSnapshot
+  onSnapshot,
+  serverTimestamp,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, getStorage } from "firebase/storage";
 
+// ———————————————————————————————————————————
+// Config & init
+// ———————————————————————————————————————————
 const firebaseConfig = {
   apiKey: "AIzaSyABW1gZYGY8u9OdqStvscD55w9ReZc2PnY",
   authDomain: "formulario-reactjs-f7217.firebaseapp.com",
@@ -31,7 +37,7 @@ const firebaseConfig = {
   storageBucket: "formulario-reactjs-f7217.appspot.com",
   messagingSenderId: "382828826062",
   appId: "1:382828826062:web:057a9e1ad89d9a0e94ef9f",
-  measurementId: "G-8VMVW5NTZB"
+  measurementId: "G-8VMVW5NTZB",
 };
 
 const app = initializeApp(firebaseConfig);
@@ -40,160 +46,189 @@ const storage = getStorage(app);
 const db = getFirestore(app);
 const analytics = getAnalytics(app);
 
+// ———————————————————————————————————————————
+// Auth util: sesión anónima para habilitar lecturas/regs
+// ———————————————————————————————————————————
+export async function ensureAuth() {
+  if (!auth.currentUser) {
+    await signInAnonymously(auth);
+  }
+  return auth.currentUser;
+}
 
-// ID fijo del documento en Firestore donde guardamos los parámetros
+// ———————————————————————————————————————————
+/** Parámetros de simulación (config/simulationParams) */
+// ———————————————————————————————————————————
 const SIM_DOC = "simulationParams";
 
-
-// retrieves simulation parameters from firebase firestore from the config collection
-
-
-/**
- * Lee una única vez los parámetros de simulación desde config/SIM_DOC.
- */
+/** Lee una sola vez los parámetros de simulación */
 export async function getSimulationParams() {
+  await ensureAuth();
   const refDoc = doc(db, "config", SIM_DOC);
-  const snap   = await getDoc(refDoc);
+  const snap = await getDoc(refDoc);
   if (!snap.exists()) throw new Error("No existe config/simulationParams");
-
-  const data = snap.data();
+  const d = snap.data();
   return {
-    minCuotas:         data.minCuotas,
-    maxCuotas:         data.maxCuotas,
-    minMonto:          data.minMonto,
-    maxMonto:          data.maxMonto,
-    interesesPorCuota: data.interesesPorCuota || {},  // <— aquí
+    minCuotas: d.minCuotas,
+    maxCuotas: d.maxCuotas,
+    minMonto: d.minMonto,
+    maxMonto: d.maxMonto,
+    interesesPorCuota: d.interesesPorCuota || {},
   };
 }
 
 /**
- * Se suscribe y entrega TODO el objeto (map incluido)
+ * Suscribe a cambios de config/simulationParams.
+ * Garantiza auth antes de abrir el snapshot.
+ * Devuelve un `unsubscribe()` válido inmediatamente (no-op hasta conectar).
  */
 export function subscribeToSimulationParams(cb, onError) {
-  const refDoc = doc(db, "config", SIM_DOC);
-  return onSnapshot(
-    refDoc,
-    snap => {
-      if (!snap.exists()) return onError?.(new Error("missing doc"));
-      const data = snap.data();
-      cb({
-        minCuotas:         data.minCuotas,
-        maxCuotas:         data.maxCuotas,
-        minMonto:          data.minMonto,
-        maxMonto:          data.maxMonto,
-        interesesPorCuota: data.interesesPorCuota || {},
-      });
-    },
-    onError
-  );
+  let unsubscribe = () => {};
+  (async () => {
+    try {
+      await ensureAuth();
+      const refDoc = doc(db, "config", SIM_DOC);
+      const _unsub = onSnapshot(
+        refDoc,
+        (snap) => {
+          if (!snap.exists()) {
+            onError?.(new Error("missing doc"));
+            return;
+          }
+          const d = snap.data();
+          cb({
+            minCuotas: d.minCuotas,
+            maxCuotas: d.maxCuotas,
+            minMonto: d.minMonto,
+            maxMonto: d.maxMonto,
+            interesesPorCuota: d.interesesPorCuota || {},
+          });
+        },
+        (err) => onError?.(err)
+      );
+      unsubscribe = _unsub;
+    } catch (e) {
+      onError?.(e);
+    }
+  })();
+  return () => unsubscribe();
 }
 
-/**
- * Guarda TODO, map incluido
- */
+/** Actualiza toda la config (incluye el map interesesPorCuota) */
 export async function updateSimulationParams(params) {
+  await ensureAuth();
   const refDoc = doc(db, "config", SIM_DOC);
   await updateDoc(refDoc, {
-    minCuotas:         params.minCuotas,
-    maxCuotas:         params.maxCuotas,
-    minMonto:          params.minMonto,
-    maxMonto:          params.maxMonto,
+    minCuotas: params.minCuotas,
+    maxCuotas: params.maxCuotas,
+    minMonto: params.minMonto,
+    maxMonto: params.maxMonto,
     interesesPorCuota: params.interesesPorCuota,
+    updatedAt: serverTimestamp(),
   });
 }
 
+// ———————————————————————————————————————————
+// Helpers de autenticación y usuarios
+// ———————————————————————————————————————————
 const logInWithEmailAndPassword = async (email, password) => {
   try {
-      await signInWithEmailAndPassword(auth, email, password);
+    await signInWithEmailAndPassword(auth, email, password);
   } catch (err) {
-      console.error(err);
-      alert(err.message);
+    console.error(err);
+    alert(err.message);
   }
 };
 
 const registerWithEmailAndPassword = async (name, email, password, role) => {
-try {
-  const res = await createUserWithEmailAndPassword(auth, email, password);
-  const user = res.user;
-  await addDoc(collection(db, "users"), {
-  uid: user.uid,
-  name,
-  authProvider: "local",
-  email,
-  role
-  });
-} catch (err) {
-  console.error(err);
-  alert(err.message);
-}
+  try {
+    const res = await createUserWithEmailAndPassword(auth, email, password);
+    const user = res.user;
+    await addDoc(collection(db, "users"), {
+      uid: user.uid,
+      name,
+      authProvider: "local",
+      email,
+      role,
+      createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    console.error(err);
+    alert(err.message);
+  }
 };
 
 const isAdmin = async (uid) => {
+  await ensureAuth();
   const q = query(collection(db, "users"), where("uid", "==", uid));
-  const doc = await getDocs(q);
-  if (doc.docs.length > 0) {
-      const data = doc.docs[0].data();
-      return data.role === "admin";
-  } else {
-    return false; // o cualquier otro valor por defecto
+  const d = await getDocs(q);
+  if (d.docs.length > 0) {
+    const data = d.docs[0].data();
+    return data.role === "admin";
   }
+  return false;
 };
 
 const isReport = async (uid) => {
+  await ensureAuth();
   const q = query(collection(db, "users"), where("uid", "==", uid));
-  const doc = await getDocs(q);
-  if (doc.docs.length > 0) {
-      const data = doc.docs[0].data();
-      return data.role === "report";
-  } else {
-    return false; // o cualquier otro valor por defecto
+  const d = await getDocs(q);
+  if (d.docs.length > 0) {
+    const data = d.docs[0].data();
+    return data.role === "report";
   }
-};  
+  return false;
+};
 
+// ———————————————————————————————————————————
+// Datos: clientes (para panel/reportes)
+// ———————————————————————————————————————————
 const fetchContactsData = async (startDate, endDate) => {
-  let q = collection(db, "clientes");
-  
+  await ensureAuth();
+  let qRef = collection(db, "clientes");
+
   if (startDate && !endDate) {
-    q = query(q, orderBy('timestamp', 'desc'), where('timestamp', '>=', new Date(startDate)));
+    qRef = query(qRef, orderBy("timestamp", "desc"), where("timestamp", ">=", new Date(startDate)));
   } else if (!startDate && endDate) {
-    q = query(q, orderBy('timestamp', 'desc'), where('timestamp', '<=', new Date(endDate)));
+    qRef = query(qRef, orderBy("timestamp", "desc"), where("timestamp", "<=", new Date(endDate)));
   } else if (startDate && endDate) {
-    q = query(q, orderBy('timestamp', 'desc'), 
-      where('timestamp', '>', new Date(startDate)),
-      where('timestamp', '<', new Date(endDate))
+    qRef = query(
+      qRef,
+      orderBy("timestamp", "desc"),
+      where("timestamp", ">", new Date(startDate)),
+      where("timestamp", "<", new Date(endDate))
     );
   } else {
-    q = query(q, orderBy('timestamp', 'desc'));
+    qRef = query(qRef, orderBy("timestamp", "desc"));
   }
 
-  const querySnapshot = await getDocs(q);
-  let data = [];
-  querySnapshot.forEach((doc) => {
-    data.push(doc.data());
-  });
-  // console.log({ data });
+  const snap = await getDocs(qRef);
+  const data = [];
+  snap.forEach((d) => data.push(d.data()));
   return data;
 };
 
+const logout = () => signOut(auth);
 
-const logout = () => {
-signOut(auth);
-};
-
+// ———————————————————————————————————————————
+// Exports
+// ———————————————————————————————————————————
 export {
   auth,
   db,
   storage,
-  deleteDoc,
+  analytics,
   ref,
   uploadBytes,
   getDownloadURL,
+  deleteDoc,
   logInWithEmailAndPassword,
   registerWithEmailAndPassword,
   sendPasswordResetEmail,
   logout,
   isAdmin,
   isReport,
-  fetchContactsData
+  fetchContactsData,
 };
+
 export default firebaseConfig;

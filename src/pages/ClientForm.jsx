@@ -1,18 +1,18 @@
 // src/pages/ClientForm.jsx
 import React, { useState } from 'react';
-import { db, auth } from '../firebase';                                      // ← Importa auth
+import { db, ensureAuth } from '../firebase';
 import '../css/ClientForm.css';
 import Banner from "../components/Header";
-import { 
+import {
+  doc,
+  writeBatch,
+  serverTimestamp,
   collection,
+  getDocs,
   query,
   where,
-  getDocs,
-  addDoc,  
-  serverTimestamp } from 'firebase/firestore';
-import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';  // ← Importa Auth methods
-import { useNavigate } from "react-router-dom";
-import { useLocation } from "react-router-dom";
+} from 'firebase/firestore';
+import { useNavigate, useLocation } from "react-router-dom";
 
 export default function ClientForm() {
   const [nombre, setNombre] = useState('');
@@ -20,243 +20,194 @@ export default function ClientForm() {
   const [telefono, setTelefono] = useState('');
   const [ingresoMensual, setIngresoMensual] = useState('');
   const [fechaIngreso, setFechaIngreso] = useState('');
-  const [fechaNacimiento, setFechaNacimiento] = useState('');                 // ← Fecha de nacimiento
-  const [email, setEmail] = useState('');                                     // ← Email
-  const [password, setPassword] = useState('');                               // ← Clave
+  const [fechaNacimiento, setFechaNacimiento] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
 
   const location = useLocation();
-  const { cuil, monto, cuotas } = location.state;                             // :contentReference[oaicite:0]{index=0}
+  const { cuil, monto, cuotas } = location.state || {};
   const navigate = useNavigate();
 
-  // Manejadores existentes
-  const handleNombreChange = e => setNombre(e.target.value);
-  const handleApellidoChange = e => setApellido(e.target.value);
-  const handleTelefonoChange = e => {
-    if (!isNaN(Number(e.target.value))) setTelefono(e.target.value);
-    else alert("El campo de teléfono debe ser un número");
+  const normalizePhone = (p) => (p || '').replace(/\D/g, '');
+  const formatISODate = (d) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
   };
-  const handleIngresoMensualChange = e => setIngresoMensual(e.target.value);
-  const handleAntiguedadChange = e => {
-  const ingresoStr = e.target.value;
-  const ingresoDate = new Date(ingresoStr);
 
-  // 1) Verifico que haya ingresado antes su fecha de nacimiento
-  if (!fechaNacimiento) {
-    alert("Primero ingresa tu fecha de nacimiento");
-    e.target.value = '';
-    return;
-  }
+  const today = new Date();
+  const fechaSolicitud = formatISODate(today);
 
-  // 2) Creo la fecha mínima de ingreso = fechaNacimiento + 18 años
-  const [yyyy, mm, dd] = fechaNacimiento.split('-');
-  const birthDate = new Date(`${yyyy}-${mm}-${dd}`);
-  const minIngresoDate = new Date(birthDate);
-  minIngresoDate.setFullYear(minIngresoDate.getFullYear() + 18);
+  const handleNombreChange = (e) => setNombre(e.target.value);
+  const handleApellidoChange = (e) => setApellido(e.target.value);
+  const handleTelefonoChange = (e) => setTelefono(e.target.value);
+  const handleIngresoMensualChange = (e) => setIngresoMensual(e.target.value);
 
-  if (ingresoDate < minIngresoDate) {
-    alert("La fecha de ingreso no puede ser anterior a tu fecha de nacimiento más 18 años");
-    e.target.value = '';
+const handleAntiguedadChange = (e) => {
+  const val = e.target.value; // YYYY-MM-DD
+  if (!val) {
     setFechaIngreso('');
     return;
   }
 
-  // 3) Calculo antigüedad en meses
-  const diffMeses = Math.floor((Date.now() - ingresoDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
-  if (diffMeses < 6) {
+  const ingresoDate = new Date(val);
+  const now = new Date();
+
+  // Debe ser al menos 6 meses atrás desde hoy
+  const minAllowed = new Date(now);
+  minAllowed.setMonth(minAllowed.getMonth() - 6);
+
+  if (ingresoDate > minAllowed) {
     alert("Debes tener una antigüedad laboral mínima de 6 meses");
     e.target.value = '';
     setFechaIngreso('');
     return;
   }
 
-  // 4) Si todo OK, guardo la fecha
-  setFechaIngreso(ingresoStr);
+  setFechaIngreso(val);
 };
-  // Nota: No es necesario validar el formato de fecha aquí, ya que el input type="date" lo maneja automáticamente
 
-  // Nuevos manejadores
-  const handleFechaNacimientoChange = e => {
-    const val = e.target.value;               // “YYYY-MM-DD” desde el input
-    if (!val) {                               // Si limpiaron el campo, simplemente actualiza
+
+  const handleFechaNacimientoChange = (e) => {
+    const val = e.target.value; // YYYY-MM-DD
+    if (!val) {
       setFechaNacimiento('');
       return;
     }
 
     const birthDate = new Date(val);
-    const today     = new Date();
+    const now = new Date();
 
-    // 1) Calcula la fecha límite: hoy - 18 años - 6 meses
-    const minAllowed = new Date(today);
+    const minAllowed = new Date(now);
     minAllowed.setFullYear(minAllowed.getFullYear() - 18);
-    // setFullYear no afecta al mes, así que restamos 6 meses aparte:
     minAllowed.setMonth(minAllowed.getMonth() - 6);
 
-    // 2) Si la fecha de nacimiento es posterior a esa fecha límite, recházala
     if (birthDate > minAllowed) {
       alert("Debes tener al menos 18 años y 6 meses de edad");
-      e.target.value = '';       // limpia el input
-      setFechaNacimiento('');    // limpia el estado
+      e.target.value = '';
+      setFechaNacimiento('');
       return;
     }
 
-    // 3) Si todo OK, guarda la fecha
     setFechaNacimiento(val);
   };
 
+  const handleSubmit = async (e) => {
+  e.preventDefault();
 
-  const handleEmailChange = e => setEmail(e.target.value);
-  const handlePasswordChange = e => setPassword(e.target.value);
+  if (!nombre || !apellido || !cuil || !telefono || !monto || !cuotas || !ingresoMensual || !fechaIngreso || !fechaNacimiento) {
+    alert('Por favor completa todos los campos');
+    return;
+  }
 
-  const today = new Date();
-  const fechaSolicitud = `${today.getFullYear()}-${today.getMonth()+1}-${today.getDate()}`;
+  // --- Validaciones de fecha ---
+  const nacimientoDate = new Date(fechaNacimiento);
+  const ingresoDate = new Date(fechaIngreso);
+  const now = new Date();
 
-  const handleSubmit = async e => {
-    e.preventDefault();
+  // Edad mínima 21
+  const edad = (now - nacimientoDate) / (1000 * 60 * 60 * 24 * 365.25);
+  if (edad < 21) {
+    alert("Solo se aceptan solicitudes para mayores de 21 años");
+    return;
+  }
 
-    // — Validar fecha de nacimiento y edad ≥21
-    // const [dd, mm, aaaa] = fechaNacimiento.split('/');
+  // Ingreso no puede ser menor que nacimiento + 18
+  const minIngresoDate = new Date(nacimientoDate);
+  minIngresoDate.setFullYear(minIngresoDate.getFullYear() + 18);
+  if (ingresoDate < minIngresoDate) {
+    alert("La fecha de ingreso no puede ser anterior a tu fecha de nacimiento + 18 años");
+    return;
+  }
 
-    // Dentro de handleSubmit, en lugar de esto:
-    // const [dd, mm, aaaa] = fechaNacimiento.split('/');
+  // Antigüedad mínima 6 meses
+  const minByTenure = new Date(now);
+  minByTenure.setMonth(minByTenure.getMonth() - 6);
+  if (ingresoDate > minByTenure) {
+    alert("Debes tener una antigüedad laboral mínima de 6 meses");
+    return;
+  }
 
-    // Haz algo así:
-    let dd, mm, aaaa;
-
-    if (fechaNacimiento.includes('/')) {
-      [dd, mm, aaaa] = fechaNacimiento.split('/');
-    } else if (fechaNacimiento.includes('-')) {
-      // viene del <input type="date">: "YYYY-MM-DD"
-      [aaaa, mm, dd] = fechaNacimiento.split('-');
-    } else {
-      alert("Ingresa tu fecha de nacimiento en formato DD/MM/AAAA");
+    // Teléfono: normalizar y validar
+    const telClean = normalizePhone(telefono);
+    if (telClean.length === 0) {
+      alert("Ingresa un número de teléfono");
       return;
     }
-
-    if (!dd || !mm || !aaaa) {
-      alert("Ingresa tu fecha de nacimiento en formato DD/MM/AAAA");
-      return;
-    }
-
-    // luego calculas la edad con la fecha correcta...
-
-    if (!dd || !mm || !aaaa) {
-      alert("Ingresa tu fecha de nacimiento en formato DD/MM/AAAA");
-      return;
-    }
-    const birth = new Date(`${aaaa}-${mm}-${dd}`);
-    const age = (Date.now() - birth.getTime()) / (1000*60*60*24*365.25);
-    if (age < 21) {
-      alert("Solo se aceptan solicitudes para mayores de 21 años");
-      return;
-    }
-
-        // — Teléfono máximo 10 dígitos
-    const telClean = telefono.replace(/\D/g, '');
     if (telClean.length > 10) {
       alert("El teléfono no debe tener más de 10 dígitos");
       return;
     }
 
-    // — Email y password obligatorios
-    if (!email || !password) {
-      alert("Debes ingresar email y contraseña para crear tu cuenta");
-      return;
-    }
-
-    // — 1) Valido unicidad CUIL, email y teléfono en Firestore —
-    const col = collection(db, 'clientes');
-
-    // 1a) Sólo bloqueo si ya hubo solicitud en los últimos 30 días
-  let snap = await getDocs(query(col, where('cuil', '==', cuil)));
-  const ahora = Date.now();
-  const treintaDias = 30 * 24 * 60 * 60 * 1000;
-
-  const reciente = snap.docs.some(d => {
-    const ts = d.data().timestamp;
-    // ts puede venir como Timestamp de Firestore
-    const fecha = ts?.toDate?.() ?? new Date(ts);
-    return ahora - fecha.getTime() < treintaDias;
-  });
-
-  if (reciente) {
-    alert('Solo puedes solicitar crédito con el mismo CUIL una vez cada 30 días.');
-    return;
-  }
-    // 1b) Email
-    snap = await getDocs(query(col, where('email', '==', email)));
-    if (!snap.empty) {
-      alert('Ese correo ya está registrado.');
-      return;
-    }
-    // 1c) Teléfono
-    snap = await getDocs(query(col, where('telefono', '==', telClean)));
-    if (!snap.empty) {
-      alert('Ese número de teléfono ya está registrado.');
-      return;
-    }
-
-    // — 2) Crear usuario en Auth y enviar código de verificación —
+    // (Opcional) Prechequeo de teléfono para feedback temprano
     try {
-      const userCred = await createUserWithEmailAndPassword(auth, email, password);
-      await sendEmailVerification(userCred.user);
-      alert(
-        'Hemos enviado un correo con un código/enlace de verificación. ' +
-        'Por favor revisa tu email y haz clic en el enlace para activar tu cuenta.'
-      );
-    } catch (authErr) {
-      console.error("Error al crear cuenta:", authErr);
-      alert("No se pudo crear la cuenta: " + authErr.message);
-      return;
+      const col = collection(db, 'clientes');
+      const snap = await getDocs(query(col, where('telefono', '==', telClean)));
+      if (!snap.empty) {
+        alert('Ese número de teléfono ya está registrado.');
+        return;
+      }
+    } catch {
+      // Si falla por permisos, dejamos que lo frenen las reglas en el batch
     }
 
-
-    // — Validaciones previas existentes
-    if (
-      !nombre || !apellido || !cuil ||
-      !telefono || !monto || !cuotas ||
-      !ingresoMensual || !fechaIngreso || !fechaSolicitud
-    ) {
-      alert('Por favor completa todos los campos');
-      return;
-    }
-
-    // — Guardar en Firestore
     setIsSubmitting(true);
     setShowSpinner(true);
-    try {
-    await addDoc(collection(db, 'clientes'), {
-      nombre,
-      apellido,
-      cuil,
-      email,               // ← guarda también correo en tu doc
-      telefono: telClean,
-      monto,
-      cuotas,
-      ingresoMensual,
-      fechaIngreso,
-      fechaSolicitud,
-      timestamp: serverTimestamp()
-    });
-    navigate('/');
-  } catch (err) {
-    console.error('Error al registrar datos:', err);
-    alert('Ocurrió un error al enviar la solicitud');
-  } finally {
-    setIsSubmitting(false);
-    setShowSpinner(false);
-  }
-};
 
+    try {
+      // Asegura autenticación (anónima) para cumplir reglas
+      const user = await ensureAuth();
+      const uid = user.uid;
+
+      // Batch: cliente + marcadores de unicidad
+      const clienteRef = doc(collection(db, "clientes")); // ID auto
+      const cuilRef    = doc(db, "_unique_cuil", String(cuil));
+      const phoneRef   = doc(db, "_unique_phones", telClean);
+
+      const batch = writeBatch(db);
+
+      batch.set(clienteRef, {
+        nombre,
+        apellido,
+        cuil: String(cuil),
+        telefono: telClean,
+        monto,
+        cuotas,
+        ingresoMensual,
+        fechaIngreso,
+        fechaSolicitud,
+        timestamp: serverTimestamp(),
+        owner: uid,
+      });
+
+      batch.set(cuilRef,  { owner: uid });
+      batch.set(phoneRef, { owner: uid });
+
+      await batch.commit();
+
+      alert('Solicitud enviada. ¡Gracias!');
+      navigate('/');
+    } catch (err) {
+      console.error('Error al registrar:', err);
+      const msg =
+        err?.code === 'permission-denied'
+          ? 'Ese CUIL o teléfono ya está registrado.'
+          : err?.message || 'Ocurrió un error al enviar la solicitud';
+      alert(msg);
+    } finally {
+      setIsSubmitting(false);
+      setShowSpinner(false);
+    }
+  };
 
   return (
     <div className='main'>
       <div className="banner__container"><Banner /></div>
       <h1 className='firsth1'>Solicitá tu crédito</h1>
+
       <form onSubmit={handleSubmit}>
         <div className='form__container'>
-
           <div className='form__container__leftpanel'>
             <h3 className='user__data'>
               <label>CUIL: <span>{cuil}</span></label>
@@ -282,48 +233,43 @@ export default function ClientForm() {
           <div className='form__container__rightpanel'>
             <label>
               Teléfono:
-              <input type="tel" value={telefono} onChange={handleTelefonoChange} />
+              <input
+                type="tel"
+                value={telefono}
+                onChange={handleTelefonoChange}
+                placeholder="Ej: (0351) 456-7890"
+              />
             </label>
+
             <label>
               Ingreso mensual:
               <input type="number" value={ingresoMensual} onChange={handleIngresoMensualChange} />
             </label>
+
             <label>
               Fecha de Nacimiento (DD/MM/AAAA):
               <input
-                type="date" 
+                type="date"
                 placeholder="DD/MM/AAAA"
-                value={fechaNacimiento} 
+                value={fechaNacimiento}
                 onChange={handleFechaNacimientoChange}
               />
             </label>
+
             <label>
               Fecha de Ingreso (Antigüedad):
               <input
-                type="date" 
+                type="date"
                 placeholder="DD/MM/AAAA"
-                value={fechaIngreso} 
-                onChange={handleAntiguedadChange             
-                } />
+                value={fechaIngreso}
+                onChange={handleAntiguedadChange}
+              />
             </label>
           </div>
         </div>
-        <div className="form__container__account">
-          <h3>
-              Datos de la cuenta
-            </h3>
-              <span>A continuación, ingresa tu email y contraseña para crear tu cuenta. </span>
-              <p>Para poder gestionar tus solicitudes de préstamo, por favor ingresa un correo electrónico válido y crea una contraseña segura. Una vez que envíes el formulario, recibirás un correo en la dirección que indiques con un enlace de verificación. Deberás abrir ese correo y hacer clic en el enlace para activar tu cuenta en MicroCuotas. Solo después de verificar tu email podrás acceder a tu panel personal y consultar el estado de todas tus solicitudes.</p>
-            <label>
-              Email:
-              <input type="email" value={email} onChange={handleEmailChange} />
-            </label>
 
-            <label>
-              Contraseña:
-              <input type="password" value={password} onChange={handlePasswordChange} />
-            </label>
-        </div>
+        {/* Se removió el bloque de "Datos de la cuenta" (email/contraseña) */}
+
         <button className='form__btn' type="submit" disabled={isSubmitting}>
           {showSpinner ? <span className="spinner">Procesando...</span> : 'Enviar'}
         </button>

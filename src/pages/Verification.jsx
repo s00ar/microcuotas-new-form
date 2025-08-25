@@ -6,18 +6,19 @@ import { query, collection, getDocs, where } from "firebase/firestore";
 import Banner from "../components/Header";
 import LottieAnim from "../components/LottieAnim";
 import { subscribeToSimulationParams } from "../firebase";
+import { ensureAuth } from "../firebase";
 
 function Verification(props) {
   const navigate = useNavigate();
   const [cuil, setCuil] = useState("");
   const [cuilError, setCuilError] = useState('');
   const [cuotas, setCuotas] = useState('');
-  const [monto, setMonto] = useState('');
+  const [monto, setMonto] = useState(500000); // Valor por defecto de 500000
   const [isLoading, setIsLoading] = useState(false); // Estado para el spinner
   const formatMiles = num =>
     num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-
-
+  
+  
   // ⚡ Estado para guardar los valores mínimos y máximos traídos desde Firebase
   const [simParams, setSimParams] = useState({
     minCuotas: 2,
@@ -25,7 +26,7 @@ function Verification(props) {
     minMonto: 50000,
     maxMonto: 500000,
   });
-
+  
   // ⚡ Suscribirse a cambios en Firestore al montar el componente
   useEffect(() => {
     const unsubscribe = subscribeToSimulationParams(
@@ -41,36 +42,35 @@ function Verification(props) {
           const v = prev || params.maxCuotas;
           return Math.min(Math.max(v, params.minCuotas), params.maxCuotas);
         });
-        setMonto(prev => {
-          const v = prev || params.minMonto;
-          return Math.min(Math.max(v, params.minMonto), params.maxMonto);
-        });
+        setMonto(params.maxMonto);
       },
       err => console.error("Error simul Params:", err)
     );
     return () => unsubscribe();
   }, []);
-
+  
   // Mantén este useEffect para leer query params sólo la primera vez
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const urlCuotas = urlParams.get("cuotas");
     const urlMonto = urlParams.get("monto");
-
+    
     if (!cuotas) {
       setCuotas('12');
     }
-
+    
     if (urlCuotas) {
-      setCuotas(urlCuotas);
+      setCuotas(Number(urlCuotas));
     }
     if (urlMonto) {
-      setMonto(urlMonto);
+      setMonto(Number(urlMonto));
     }
-  }, []);
 
+  }, []);
+  
   const checkCuilAvailability = async () => {
     setIsLoading(true); // Muestra el spinner al hacer clic en el botón
+    await ensureAuth(); // <- importante
     try {
       if (!cuil) {
         setCuilError("CUIL no puede estar en blanco");
@@ -92,17 +92,17 @@ function Verification(props) {
         setCuilError("Ingresa un CUIL válido");
         setIsLoading(false);
         return;
-      }
-
+      } 
+      
       const q = query(collection(db, 'clientes'), where('cuil', '==', cuil));
       const querySnapshot = await getDocs(q);
-
+      
       let recentRequest = false;
-
+      
       querySnapshot.forEach((doc) => {
         const timestampData = doc.data().timestamp;
         const timestamp = timestampData ? timestampData.toDate() : null;
-
+        
         if (timestamp) {
           const last30Days = 30 * 24 * 60 * 60 * 1000;
           if (Date.now() - timestamp.getTime() < last30Days) {
@@ -112,7 +112,7 @@ function Verification(props) {
           console.error('Timestamp is undefined for document with CUIL:', cuil);
         }
       });
-
+      
       if (recentRequest) {
         setCuilError("El CUIL ya fue registrado en los últimos 30 días. Solamente se puede ingresar una solicitud cada 30 días.");
       } else {
@@ -126,7 +126,7 @@ function Verification(props) {
       setIsLoading(false); // Oculta el spinner al finalizar el proceso
     }
   };
-
+  
   // ⚡ Manejo de cambio usando los rangos dinámicos
   const handleCuotasChange = (e) => {
     const newValue = parseInt(e.target.value, 10);
@@ -134,18 +134,23 @@ function Verification(props) {
       setCuotas(newValue);
     }
   };
-
+  
   const handleMontoChange = (e) => {
     const newValue = parseInt(e.target.value, 10);
     if (newValue >= simParams.minMonto && newValue <= simParams.maxMonto) {
       setMonto(newValue);
     }
   };
-
+  
   const closeError = () => {
     setCuilError("");
     window.location.reload();
   };
+  
+  useEffect(() => {
+    ensureAuth().catch(console.error);
+  }, []);
+
   return (
     <div>
       <div className="banner__container">
@@ -158,7 +163,7 @@ function Verification(props) {
               <LottieAnim
                 width={600}
                 height={600}
-              />
+                />
             </div>
           </div>
           <div className="verification__container__panel_right">
@@ -168,7 +173,7 @@ function Verification(props) {
               type="text"
               placeholder="Ingresa tu cuil"
               onChange={(e) => setCuil(e.target.value)}
-            />
+              />
             <h2 htmlFor="monto">Monto Solicitado:</h2>
             {/* ⚡ Aquí se usan los valores min/max traídos de Firebase */}
             <input
@@ -177,10 +182,10 @@ function Verification(props) {
               type="range"
               min={simParams.minMonto}
               max={simParams.maxMonto}
-              step="5000"
-              value={monto}
+              step={5000}
+              value={Number(monto)}
               onChange={handleMontoChange}
-            />
+              />
             {/* <span>{`Monto: $${monto}`}</span> */}
             <span>{`Monto: $${formatMiles(monto)}`}</span>
 
@@ -192,9 +197,9 @@ function Verification(props) {
               type="range"
               min={simParams.minCuotas}
               max={simParams.maxCuotas}
-              value={cuotas}
+              value={Number(cuotas) || simParams.maxCuotas}
               onChange={handleCuotasChange}
-            />
+              />
             <span>{`Cantidad de cuotas: ${cuotas}`}</span>
           </div>
         </div>
@@ -204,7 +209,7 @@ function Verification(props) {
           className="verification__btn"
           onClick={checkCuilAvailability}
           disabled={isLoading}
-        >
+          >
           {isLoading ? <span className="spinner">Cargando...</span> : "Solicitar crédito"}
         </button>
       </div>
@@ -218,7 +223,7 @@ function Verification(props) {
         </div>
       }
 
-      <p className="version-text">v3.2</p>
+      <p className="version-text">v3.3.2</p>
     </div>
   );
 }

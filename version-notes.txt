@@ -1,0 +1,1 @@
+Esta versión no crea usuario en firebase ni solicita email y password por solicitud del cliente pero soluciona el problema de la carga del campo de antiguedad.
