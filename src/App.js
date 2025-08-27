@@ -18,12 +18,13 @@ const App = () => {
     <div className="App">
         <Router basename={process.env.PUBLIC_URL}>
           <Routes>
-            <Route exact path="/" element={<Verification/>} />
+            <Route path="/verification" element={<Verification />} />
             <Route path="/clientform" element={<ClientForm cuil={cuil} />} /> {/* Pass cuil as a prop */}
-            <Route exact path="/login" element={<Login />} />
-            <Route exact path="/reset" element={<Reset />} />
-            <Route exact path="/register" element={<Register />} />
-            <Route exact path="/report" element={<Report />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/reset" element={<Reset />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/report" element={<Report />} />
+            <Route path="/" element={<Verification />} />
           </Routes>
         </Router>
         </div>

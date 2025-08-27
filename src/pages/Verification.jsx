@@ -166,17 +166,17 @@ function Verification(props) {
         </button>
       </div>
 
-      {cuilError && 
+      {cuilError && (
       <div className="error-message_container">
       <div className="error-message">
         <div className="error-message_header">
           Error
         </div>
         <div className="error-message_body">
-      El CUIL ya fue registrado en los últimos 30 días. Solamente se puede ingresar una solicitud cada 30 días.
+      {cuilError}
         </div>
       </div>
-    </div>}
+    </div>)}
     
           {/* version actual del software */}
           <p className="version-text">
