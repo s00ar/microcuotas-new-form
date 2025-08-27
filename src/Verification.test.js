@@ -1,60 +1,76 @@
-// src/pages/Verification.test.js
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import Verification from './Verification';
+import Verification from './pages/Verification';
 import { MemoryRouter } from 'react-router-dom';
+import { getDocs } from 'firebase/firestore';
 
-// Mock de Firebase y navegación
-jest.mock('../firebase', () => ({
-  db: {},
-  collection: jest.fn(),
-  getDocs: jest.fn().mockResolvedValue({ forEach: () => {} }),
-  query: jest.fn(),
-  where: jest.fn(),
+jest.mock('./firebase', () => ({ db: {} }));
+jest.mock('firebase/firestore', () => ({
+  collection: jest.fn(() => ({})),
+  getDocs: jest.fn(),
+  query: jest.fn(() => ({})),
+  where: jest.fn(() => ({})),
 }));
+
 jest.mock('react-router-dom', () => ({
   ...jest.requireActual('react-router-dom'),
   useNavigate: () => jest.fn(),
 }));
 
 describe('Verification Component', () => {
-  test('renders all form fields', () => {
-    render(
-      <MemoryRouter>
-        <Verification />
-      </MemoryRouter>
-    );
-
-    expect(screen.getByPlaceholderText(/Ingresa tu cuil/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Cantidad de Cuotas:/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Monto Solicitado:/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Solicitar crédito/i })).toBeInTheDocument();
+  beforeEach(() => {
+    getDocs.mockResolvedValue({ forEach: () => {} });
   });
 
-  test('shows error when CUIL is empty and button is clicked', async () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test('step 1: shows error when CUIL is empty', async () => {
     render(
       <MemoryRouter>
         <Verification />
       </MemoryRouter>
     );
 
-    const button = screen.getByRole('button', { name: /Solicitar crédito/i });
-    fireEvent.click(button);
+    fireEvent.click(screen.getByRole('button', { name: /Solicitar crédito/i }));
 
     expect(await screen.findByText(/CUIL no puede estar en blanco/i)).toBeInTheDocument();
   });
 
-  test('checkbox toggles cliente recurrente', () => {
+  test('step 2: shows error for invalid CUIL length', async () => {
     render(
       <MemoryRouter>
         <Verification />
       </MemoryRouter>
     );
 
-    const checkbox = screen.getByRole('checkbox');
-    expect(checkbox).not.toBeChecked();
+    fireEvent.change(screen.getByPlaceholderText(/Ingresa tu cuil/i), {
+      target: { value: '123' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Solicitar crédito/i }));
 
-    fireEvent.click(checkbox);
-    expect(checkbox).toBeChecked();
+    expect(await screen.findByText(/Ingresa un CUIL válido/i)).toBeInTheDocument();
+  });
+
+  test('step 3: shows error when CUIL already registered', async () => {
+    const recentDate = new Date();
+    getDocs.mockResolvedValue({
+      forEach: (cb) => cb({ data: () => ({ timestamp: { toDate: () => recentDate } }) }),
+    });
+
+    render(
+      <MemoryRouter>
+        <Verification />
+      </MemoryRouter>
+    );
+
+    fireEvent.change(screen.getByPlaceholderText(/Ingresa tu cuil/i), {
+      target: { value: '20123456789' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Solicitar crédito/i }));
+
+    expect(await screen.findByText(/El CUIL ya fue registrado en los últimos 30 días/i)).toBeInTheDocument();
   });
 });
+
