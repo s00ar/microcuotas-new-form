@@ -164,6 +164,12 @@ function Verification(props) {
         >
           {isLoading ? <span className="spinner">Cargando...</span> : "Solicitar crédito"}
         </button>
+        <button
+          className="verification__btn"
+          onClick={() => navigate('/verification-step2')}
+        >
+          Ir al paso 2
+        </button>
       </div>
 
       {cuilError && (
