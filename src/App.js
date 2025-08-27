@@ -5,6 +5,8 @@ import Reset from "./pages/Reset";
 import Register from "./pages/Register";
 import Report from "./pages/Report";
 import Verification from "./pages/Verification";
+import VerificationStep2 from "./pages/VerificationStep2";
+import VerificationStep3 from "./pages/VerificationStep3";
 import ClientForm from './pages/ClientForm';
 import './css/App.css';
 import firebaseApp from "./firebase";
@@ -19,6 +21,8 @@ const App = () => {
         <Router basename={process.env.PUBLIC_URL}>
           <Routes>
             <Route path="/verification" element={<Verification />} />
+            <Route path="/verification-step2" element={<VerificationStep2 />} />
+            <Route path="/verification-step3" element={<VerificationStep3 />} />
             <Route path="/clientform" element={<ClientForm cuil={cuil} />} /> {/* Pass cuil as a prop */}
             <Route path="/login" element={<Login />} />
             <Route path="/reset" element={<Reset />} />
