@@ -1,35 +1,9 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import App from './App';
 
 test('renders Paso1 on root route', () => {
   window.history.pushState({}, 'Inicio', '/');
   render(<App />);
   expect(screen.getByRole('button', { name: /Solicitar crédito/i })).toBeInTheDocument();
-});
-
-test('shows error when monto is empty in App', () => {
-  window.history.pushState({}, 'Inicio', '/');
-  render(<App />);
-
-  fireEvent.change(screen.getByPlaceholderText(/Cantidad de cuotas/i), {
-    target: { value: '2' },
-  });
-  fireEvent.click(screen.getByRole('button', { name: /Solicitar crédito/i }));
-  expect(
-    screen.getByText(/El monto no puede estar en blanco/i)
-  ).toBeInTheDocument();
-});
-
-test('shows error when cuotas is empty in App', () => {
-  window.history.pushState({}, 'Inicio', '/');
-  render(<App />);
-
-  fireEvent.change(screen.getByPlaceholderText(/Monto solicitado/i), {
-    target: { value: '100000' },
-  });
-  fireEvent.click(screen.getByRole('button', { name: /Solicitar crédito/i }));
-  expect(
-    screen.getByText(/La cantidad de cuotas no puede estar en blanco/i)
-  ).toBeInTheDocument();
 });

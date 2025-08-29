@@ -18,7 +18,5 @@ test('shows error when user is under 18 years and 6 months', async () => {
     target: { value: underage.toISOString().split('T')[0] },
   });
   fireEvent.click(screen.getByRole('button', { name: /Continuar/i }));
-  expect(
-    await screen.findByText(/Lamentablemente por el momento no podemos ofrecerle ningun préstamo/i)
-  ).toBeInTheDocument();
+  expect(await screen.findByText(/Debes ser mayor de 18 años y 6 meses/i)).toBeInTheDocument();
 });

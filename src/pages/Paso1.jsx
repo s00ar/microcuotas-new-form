@@ -6,52 +6,24 @@ import LottieAnim from "../components/LottieAnim";
 
 function Paso1() {
   const navigate = useNavigate();
-  const [cuotas, setCuotas] = useState("");
-  const [monto, setMonto] = useState("");
-  const [errorCuotas, setErrorCuotas] = useState("");
-  const [errorMonto, setErrorMonto] = useState("");
+  const [cuotas, setCuotas] = useState("12");
+  const [monto, setMonto] = useState(500000);
 
   const handleCuotasChange = (e) => {
-    const value = e.target.value;
-    if (value === "") {
-      setCuotas("");
-      return;
-    }
-    const newValue = parseInt(value, 10);
+    const newValue = parseInt(e.target.value);
     if (newValue >= 2 && newValue <= 12) {
-      setCuotas(newValue.toString());
+      setCuotas(newValue);
     }
   };
 
   const handleMontoChange = (e) => {
-    const value = e.target.value;
-    if (value === "") {
-      setMonto("");
-      return;
-    }
-    const newValue = parseInt(value, 10);
+    const newValue = parseInt(e.target.value);
     if (newValue >= 100000 && newValue <= 500000) {
-      setMonto(newValue.toString());
+      setMonto(newValue);
     }
   };
 
   const handleNext = () => {
-    let valid = true;
-    if (!monto) {
-      setErrorMonto("El monto no puede estar en blanco");
-      valid = false;
-    } else {
-      setErrorMonto("");
-    }
-    if (!cuotas) {
-      setErrorCuotas("La cantidad de cuotas no puede estar en blanco");
-      valid = false;
-    } else {
-      setErrorCuotas("");
-    }
-    if (!valid) {
-      return;
-    }
     navigate("/paso2", { state: { cuotas, monto } });
   };
 
@@ -72,37 +44,25 @@ function Paso1() {
             <input
               className="verification__input"
               id="cuotas"
-              type="number"
+              type="range"
               min="2"
               max="12"
-              placeholder="Cantidad de cuotas"
               value={cuotas}
               onChange={handleCuotasChange}
             />
-            {errorCuotas && (
-              <div className="error-message_container">
-                <div className="error-message_header">Error</div>
-                <div className="error-message_body">{errorCuotas}</div>
-              </div>
-            )}
+            <span>{`Cantidad de cuotas: ${cuotas}`}</span>
             <h2 htmlFor="monto">Monto Solicitado:</h2>
             <input
               className="verification__input"
               id="monto"
-              type="number"
+              type="range"
               min="100000"
               max="500000"
               step="5000"
-              placeholder="Monto solicitado"
               value={monto}
               onChange={handleMontoChange}
             />
-            {errorMonto && (
-              <div className="error-message_container">
-                <div className="error-message_header">Error</div>
-                <div className="error-message_body">{errorMonto}</div>
-              </div>
-            )}
+            <span>{`Monto: $${monto}`}</span>
           </div>
         </div>
       </div>
