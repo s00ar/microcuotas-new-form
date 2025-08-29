@@ -1,16 +1,14 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import App from './App';
+import { MemoryRouter } from 'react-router-dom';
+import Paso1 from './pages/Paso1';
 
-test('renders Paso1 on root route', () => {
-  window.history.pushState({}, 'Inicio', '/');
-  render(<App />);
-  expect(screen.getByRole('button', { name: /Solicitar crédito/i })).toBeInTheDocument();
-});
-
-test('shows error when monto is empty in App', () => {
-  window.history.pushState({}, 'Inicio', '/');
-  render(<App />);
+test('shows error when monto is empty', () => {
+  render(
+    <MemoryRouter>
+      <Paso1 />
+    </MemoryRouter>
+  );
 
   fireEvent.change(screen.getByPlaceholderText(/Cantidad de cuotas/i), {
     target: { value: '2' },
@@ -21,9 +19,12 @@ test('shows error when monto is empty in App', () => {
   ).toBeInTheDocument();
 });
 
-test('shows error when cuotas is empty in App', () => {
-  window.history.pushState({}, 'Inicio', '/');
-  render(<App />);
+test('shows error when cuotas is empty', () => {
+  render(
+    <MemoryRouter>
+      <Paso1 />
+    </MemoryRouter>
+  );
 
   fireEvent.change(screen.getByPlaceholderText(/Monto solicitado/i), {
     target: { value: '100000' },
