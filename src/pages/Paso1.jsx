@@ -1,8 +1,8 @@
-import "../css/Verification.css";
+import "../css/Pasos.css";
 import { useNavigate } from "react-router-dom";
 import React, { useState } from "react";
 import Banner from "../components/Header";
-import verificationImage from "../assets/verification.jpg";
+import LottieAnim from "../components/LottieAnim";
 
 function Paso1() {
   const navigate = useNavigate();
@@ -36,7 +36,7 @@ function Paso1() {
         <div className="verification__container__panel">
           <div className="verification__container__panel_left">
             <div className="verification__container__image_img-container">
-              <img className="verification__container__image_img" src={verificationImage} alt="verification" />
+              <LottieAnim width={600} height={600} />
             </div>
           </div>
           <div className="verification__container__panel_right">

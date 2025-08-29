@@ -1,8 +1,8 @@
-import "../css/Verification.css";
+import "../css/Pasos.css";
 import { useNavigate, useLocation } from "react-router-dom";
 import React, { useState } from "react";
 import Banner from "../components/Header";
-import verificationImage from "../assets/verification.jpg";
+import LottieAnim from "../components/LottieAnim";
 
 function Paso3() {
   const navigate = useNavigate();
@@ -23,8 +23,9 @@ function Paso3() {
         setError("Ingresa un CUIL/CUIT válido");
         return;
       }
+      
 
-      const response = await fetch(`https://api.bcra.gob.ar/centraldeudores/porcuil/${cuil}`);
+      const response = await fetch(`https://api.bcra.gob.ar/CentralDeDeudores/v1.0/Deudas/${cuil}`);
       if (response.ok) {
         navigate("/clientform", { state: { cuil, cuotas, monto, birthdate } });
       } else {
@@ -46,7 +47,7 @@ function Paso3() {
         <div className="verification__container__panel">
           <div className="verification__container__panel_left">
             <div className="verification__container__image_img-container">
-              <img className="verification__container__image_img" src={verificationImage} alt="verification" />
+              <LottieAnim width={600} height={600} />
             </div>
           </div>
           <div className="verification__container__panel_right">

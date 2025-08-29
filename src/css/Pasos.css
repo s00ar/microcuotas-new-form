@@ -62,18 +62,12 @@
     align-items: center;
     height: 100%; /* Ajusta según el tamaño de tu contenedor */
     position: relative; /* Necesario si la imagen necesita estar en un contexto posicionado */
-}
-.verification__container__image_img {
-    width: 60%;
-    object-fit: cover;
-    position: fixed;
-    top: 50%;
-    margin-top: 4rem;
-    border-radius: 25px;
-    box-shadow:  10px 10px 10px rgba(0, 0, 0, 0.4);
+    margin-top: 140px;
+    margin-bottom: -640px;
 }
 .verification__container h2{
     padding-top: 5rem;
+    margin: 20px 0 20px 0;
 }
 .verification__input{
     height: 2rem;

@@ -1,8 +1,8 @@
-import "../css/Verification.css";
+import "../css/Pasos.css";
 import { useNavigate, useLocation } from "react-router-dom";
 import React, { useState } from "react";
 import Banner from "../components/Header";
-import verificationImage from "../assets/verification.jpg";
+import LottieAnim from "../components/LottieAnim";
 
 function Paso2() {
   const navigate = useNavigate();
@@ -27,7 +27,7 @@ function Paso2() {
       return;
     }
     if (!isAdult(birthdate)) {
-      setError("Debes ser mayor de 18 años y 6 meses");
+      setError("Lamentablemente por el momento no podemos ofrecerle ningun préstamo. La política de MicroCuotas es atender a nuestros clientes a partir de los 21 años. Esperamos en el futuro contar con ud. Muchas Gracias.");
       return;
     }
     navigate("/paso3", { state: { cuotas, monto, birthdate } });
@@ -42,7 +42,7 @@ function Paso2() {
         <div className="verification__container__panel">
           <div className="verification__container__panel_left">
             <div className="verification__container__image_img-container">
-              <img className="verification__container__image_img" src={verificationImage} alt="verification" />
+              <LottieAnim width={600} height={600} />
             </div>
           </div>
           <div className="verification__container__panel_right">
