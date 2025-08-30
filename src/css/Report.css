@@ -1,0 +1,186 @@
+.filter__field {
+  display: flex;
+  justify-content: space-between;
+}
+
+.filter__field__container {
+  display: flex;
+  overflow: visible !important;
+}
+
+.table__container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Center table container */
+  padding-top: 2rem;
+}
+th{
+  text-decoration: none !important;
+  font-size: 15px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 10px;
+  cursor: pointer;
+  border-radius: 25px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse; /* Remove gaps between table cells */
+}
+
+th, td {
+  text-align: left;
+  padding: 8px;
+  border: 1px solid #ddd; /* Add border to table cells */
+}
+
+th:hover {
+  background-color: #7ed4ff;
+}
+
+td button {
+  color: white;
+  background-color: red; /* Set button color to red */
+  border: none;
+  padding: 5px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+td button:hover {
+  background-color: darkred; /* Change button color on hover */
+}
+
+.admin__logo {
+  height: 160px;
+}
+
+.admin-background {
+  background-color: #f7f6f6;
+  width: 100%;
+}
+
+.main__container {
+  min-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.admin__title__card {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.admin__title {
+  color: rgb(83, 182, 248);
+  font: bolder;
+  font-size: 2rem;
+  text-shadow: 2px 2px 2px #6b6a6a;
+  padding: 2rem;
+}
+
+.admin__title h2 {
+  font-size: 1rem;
+}
+
+.container__chart {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  flex-direction: row;
+  align-items: center;
+}
+
+.chart__titles {
+  text-align: center;
+}
+
+.nav__container {
+  height: 13%;
+}
+
+.innderNav {
+  display: flex;
+  justify-content: space-between;
+}
+
+.admin__button__container {
+  margin: 0;
+  padding: 0;
+  justify-content: space-between;
+  flex-direction: row;
+}
+
+.btn__admin {
+  font-size: 1rem;
+  text-align: center;
+  border: 0;
+  color: black;
+  margin: 1rem;
+  padding: 0.5rem;
+  border-radius: 15px;
+}
+
+.btn__admin:hover {
+  background-color: #321ee3;
+  transition: background-color 0.3s ease;
+}
+
+.btn__admin__text:hover {
+  color: aliceblue;
+}
+
+.btn__admin__text {
+  color: rgb(0, 0, 0) 212;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.btn__export {
+  margin-top: 20px;
+  padding: 10px 20px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.btn__export:hover {
+  background-color: #45a049;
+}
+
+.input__container {
+  display: flex;
+  align-items: center;
+}
+
+.input__field {
+  margin: 0 10px;
+  padding: 5px;
+}
+
+.btn__buscar {
+  padding: 5px 10px;
+  margin-left: 10px;
+}
+
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 20px;
+}
+
+.pagination-container button {
+  padding: 5px 10px;
+  margin: 0 10px;
+}
+
+.pagination-container span {
+  margin: 0 10px;
+}

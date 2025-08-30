@@ -1,0 +1,241 @@
+@import url('https://fonts.googleapis.com/css2?family=Fira+Sans&display=swap');
+
+* {
+    font-family: 'Fira Sans', sans-serif, Arial, Helvetica, sans-serif ;
+    margin: 0;
+}
+.version-text{
+    font-size: 1rem;
+    color: #bdbdbd;
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    padding: 1rem;
+    z-index: 999;
+}
+.datos-personales{
+    text-align: center;
+    padding: 1rem;
+    z-index: 999;
+}
+#checkbox{
+    margin-top: 1rem;
+    margin-left: 2rem;
+    scale: 2;
+    cursor: pointer;
+}
+.disabled {
+    opacity: 0.5;
+}
+.error{
+    z-index: 10;
+    background-color: red;
+    color: #ffffff;
+}
+.verification__container__panel_right_question {
+    font-size: 1.15rem;
+    font-weight: 600;
+    padding-top: 1rem;
+}
+.verification__container {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+}
+.verification__container__panel{
+    flex-direction: row;
+}
+.verification__container__panel_left{
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50vw;
+}
+.verification__container__panel_right{
+    width: 40vw;
+    right: 50%;
+    transform: translateX(50%);
+}
+.verification__container__image_img-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%; /* Ajusta según el tamaño de tu contenedor */
+    position: relative; /* Necesario si la imagen necesita estar en un contexto posicionado */
+    margin-top: 140px;
+    margin-bottom: -640px;
+}
+.verification__container h2{
+    padding-top: 5rem;
+    margin: 20px 0 20px 0;
+}
+.verification__input{
+    height: 2rem;
+    border-radius: .75rem;
+    color: rgba(0, 0, 0, .87);
+    border: 1px solid #dadce0;   
+    width: 50%;
+}
+.verification__container input{
+    margin-left: 3rem;
+}
+
+.row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+}
+.row input{
+    display: flex;
+    flex-direction: row;
+}
+
+.row input{
+    width: 100%;
+}
+
+.banner__container {
+    position: relative;
+}
+
+.logo1 {
+    z-index: 2;
+}
+.logo {
+    display: flex;
+    flex-direction:row-reverse;
+    margin-top: -12rem;
+    justify-content:flex-end;
+    position: relative;
+    display: flex;
+    z-index: 2;
+    flex-direction: row;
+    justify-content:flex-end;
+    margin-right: -10rem;
+}
+
+.btn__container {
+    position: relative;
+    display: flex;
+    z-index: 2;
+    flex-direction: row;
+    justify-content: center;
+}
+
+.verification__btn {
+    background-color: #060a95;
+    color: #ffffff;
+    border-radius: 25px;
+    padding: 1.2rem;
+    font-size: 1rem;
+    text-align: center;
+    font-weight: 750;
+    border: 0;
+    margin-top: 1rem;
+}
+.verification__btn:hover {
+    border: 0;
+    background-color: #5366fa;
+    color: rgb(248, 248, 248);
+    transform:scale(0.9);
+    transition: cubic-bezier(0.075, 0.82, 0.165, 1);
+}
+
+
+/* Encabezado de la ventana emergente */
+.error-message_header {
+    display: flex; /* Alinea el contenido horizontalmente */
+    align-items: center; /* Centra verticalmente */
+    background-color: #0078d7; /* Fondo azul similar a Windows */
+    color: #ffffff; /* Texto blanco */
+    padding: 10px 15px; /* Espaciado interno */
+    font-size: 16px; /* Tamaño de fuente */
+    font-weight: 600; /* Fuente negrita */
+}
+
+/* Cuerpo del mensaje de error */
+.error-message_body {
+    padding: 20px; /* Espaciado interno */
+    color: #000000; /* Color de texto negro */
+    font-size: 14px; /* Tamaño de fuente */
+}
+
+/* Estilo para el mensaje de error */
+.error-message {
+    padding: 20px; /* Espaciado interno */
+    color: #000000; /* Color de texto negro */
+    font-size: 14px; /* Tamaño de fuente */
+}
+
+.error-message_container {
+    background-color: #ffffff; /* Fondo blanco */
+    border: 1px solid #dcdcdc; /* Borde gris claro */
+    width: 60%;
+    margin: 0 auto;
+    margin-top: 1rem;
+    border-radius: 8px; /* Bordes redondeados */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Sombra suave */
+    z-index: 1000; /* Asegura que esté encima de otros elementos */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Fuente similar a Windows */
+    overflow: hidden; /* Esconde el contenido que se sale del contenedor */
+    display: flex; /* Flexbox para el contenido */
+    flex-direction: column; /* Ordena el contenido en columna */
+}
+
+@media only screen and (max-width: 850px) {
+    * {
+        font-family: 'Fira Sans', sans-serif, Arial, Helvetica, sans-serif ;
+        margin: 0;
+    }
+    .verification__container {
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        overflow:hidden ;
+        margin-top: -2rem;
+    }
+    
+    .row {
+        display: flex;
+        justify-content: center;
+        flex-direction: column;
+    }
+    
+    .logo1 {
+        position: relative;
+        display: flex;
+        z-index: 2;
+        flex-direction: row;
+        justify-content: center;
+    }
+    .logo__container {
+        position: relative;
+        display: flex;
+        z-index: 3;
+        flex-direction: row;
+        justify-content: center;
+        margin: -20rem 0 0 0;
+    }
+    .logo{
+        width: 500px;
+    }
+    .verification__container__panel_right{
+        margin-top: 2rem;
+        width: 100%;
+        right: 0%;
+        transform:none;
+    }
+
+    .row input{
+        height: 1rem;
+        width: 100%;
+    }
+    .verification__container {
+        min-height: 100%;
+    }
+    .verification__container__panel_left{
+        position: relative;
+        display: none;
+    }
+}
