@@ -12,6 +12,7 @@ import {
   where,
   getDocs,
   limit,
+  orderBy,
   Timestamp,
   setLogLevel,
 } from "firebase/firestore";
@@ -55,9 +56,10 @@ function Paso3() {
       console.log("Firestore cutoff:", { cutoffDate: cutoffDate.toISOString(), cutoffTs });
 
       const qRef = query(
-        collection(db, "clientes"),
+        collection(db, "solicitudes"),
         where("cuil", "==", cuil),
         where("timestamp", ">", cutoffTs),
+        orderBy("timestamp", "desc"),
         limit(1)
       );
 
