@@ -4,6 +4,20 @@ import React, { useState } from "react";
 import Banner from "../components/Header";
 import LottieAnim from "../components/LottieAnim";
 
+// Firestore
+import {
+  getFirestore,
+  collection,
+  query,
+  where,
+  getDocs,
+  limit,
+  Timestamp,
+  setLogLevel,
+} from "firebase/firestore";
+
+setLogLevel?.("debug"); // activa logs verbosos de Firestore
+
 function Paso3() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -12,29 +26,97 @@ function Paso3() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  const db = getFirestore();
+
   const checkBcraStatus = async () => {
     setIsLoading(true);
+    setError("");
+
+    console.groupCollapsed("Paso3.checkBcraStatus");
+    console.log("Inputs:", { cuil, cuotas, monto, birthdate, online: navigator.onLine });
+
     try {
+      // 0) Validaciones básicas
       if (!cuil) {
         setError("CUIL/CUIT no puede estar en blanco");
+        console.warn("Validación: cuil vacío");
         return;
       }
-      if (cuil.length !== 11) {
+      if (!/^\d{11}$/.test(cuil)) {
         setError("Ingresa un CUIL/CUIT válido");
+        console.warn("Validación: formato inválido", { length: cuil.length, value: cuil });
         return;
       }
-      
 
-      const response = await fetch(`https://api.bcra.gob.ar/CentralDeDeudores/v1.0/Deudas/${cuil}`);
+      // 1) Gate de Firestore: 30 días
+      const treintaDiasMs = 30 * 24 * 60 * 60 * 1000;
+      const cutoffDate = new Date(Date.now() - treintaDiasMs);
+      const cutoffTs = Timestamp.fromDate(cutoffDate);
+      console.log("Firestore cutoff:", { cutoffDate: cutoffDate.toISOString(), cutoffTs });
+
+      const qRef = query(
+        collection(db, "clientes"),
+        where("cuil", "==", cuil),
+        where("timestamp", ">", cutoffTs),
+        limit(1)
+      );
+
+      console.time("Firestore:getDocs");
+      const snap = await getDocs(qRef);
+      console.timeEnd("Firestore:getDocs");
+      console.log("Firestore snapshot:", { empty: snap.empty, size: snap.size });
+
+      if (!snap.empty) {
+        const doc = snap.docs[0];
+        // log seguro: muestra solo campos clave
+        const data = doc.data?.() ?? {};
+        console.warn("Solicitud reciente encontrada", {
+          id: doc.id,
+          cuil: data.cuil,
+          timestamp: data.timestamp?.toDate?.()?.toISOString?.(),
+        });
+
+        setError(
+          "El CUIL ya fue registrado en los últimos 30 días. Solamente se puede ingresar una solicitud cada 30 días."
+        );
+        return;
+      }
+
+      // 2) BCRA
+      const url = `https://api.bcra.gob.ar/CentralDeDeudores/v1.0/Deudas/${cuil}`;
+      console.time("BCRA:fetch");
+      const response = await fetch(url, { method: "GET" }).catch((err) => {
+        console.error("Fetch error antes de recibir respuesta", err);
+        throw err;
+      });
+      console.timeEnd("BCRA:fetch");
+      console.log("BCRA response:", { ok: response.ok, status: response.status, url: response.url });
+
       if (response.ok) {
+        console.log("BCRA OK. Navegando a /clientform");
         navigate("/clientform", { state: { cuil, cuotas, monto, birthdate } });
       } else {
         setError("No fue posible verificar su situación en BCRA");
+        const text = await response.text().catch(() => "");
+        console.error("BCRA no OK", { status: response.status, body: text?.slice?.(0, 500) });
       }
     } catch (e) {
-      setError("Ocurrió un error al verificar en BCRA");
+      console.error("Excepción en checkBcraStatus", {
+        name: e?.name,
+        code: e?.code,
+        message: e?.message,
+        stack: e?.stack,
+      });
+      const msg =
+        e?.code === "permission-denied"
+          ? "No autorizado para leer datos. Vuelve a intentar."
+          : e?.code === "resource-exhausted"
+          ? "Se agotó el cupo de Firestore. Intenta más tarde."
+          : "Ocurrió un error al verificar el CUIL/BCRA.";
+      setError(msg);
     } finally {
       setIsLoading(false);
+      console.groupEnd();
     }
   };
 
@@ -56,7 +138,7 @@ function Paso3() {
               className="verification__input"
               type="text"
               placeholder="Ingresa tu cuil"
-              onChange={(e) => setCuil(e.target.value)}
+              onChange={(e) => setCuil(e.target.value.trim())}
             />
             {error && (
               <div className="error-message_container">
