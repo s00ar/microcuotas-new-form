@@ -93,8 +93,17 @@ function Paso3() {
       console.log("BCRA response:", { ok: response.ok, status: response.status, url: response.url });
 
       if (response.ok) {
-        console.log("BCRA OK. Navegando a /clientform");
-        navigate("/clientform", { state: { cuil, cuotas, monto, birthdate } });
+        const data = await response.json().catch(() => ({}));
+        const nombre =
+          data?.denominacion ||
+          data?.nombre ||
+          data?.Nombre ||
+          data?.NombreCompleto ||
+          "";
+        console.log("BCRA OK. Navegando a /paso4", { nombre });
+        navigate("/paso4", {
+          state: { cuil, cuotas, monto, birthdate, nombre },
+        });
       } else {
         setError("No fue posible verificar su situación en BCRA");
         const text = await response.text().catch(() => "");
