@@ -1,8 +1,11 @@
 import "../css/Pasos.css";
 import { useNavigate, useLocation } from "react-router-dom";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import Banner from "../components/Header";
 import LottieAnim from "../components/LottieAnim";
+import { saveRechazo, RESULTADOS_EVALUACION } from "../services/solicitudes";
+
+const CONTACTO = "1142681704";
 
 function Paso2() {
   const navigate = useNavigate();
@@ -10,6 +13,7 @@ function Paso2() {
   const { cuotas, monto } = location.state || {};
   const [birthdate, setBirthdate] = useState("");
   const [error, setError] = useState("");
+  const rechazoRegistradoRef = useRef(false);
 
   const isAdult = (date) => {
     const birth = new Date(date);
@@ -21,13 +25,42 @@ function Paso2() {
     return months >= 222; // 18 aÃ±os y 6 meses
   };
 
+  const registrarRechazoEdad = async (fecha) => {
+    if (rechazoRegistradoRef.current) {
+      return;
+    }
+    rechazoRegistradoRef.current = true;
+    try {
+      const resultado = RESULTADOS_EVALUACION.MENOR_21;
+      await saveRechazo({
+        motivoRechazo: resultado.descripcion,
+        motivoRechazoCodigo: "menor_21",
+        resultadoEvaluacionCodigo: resultado.codigo,
+        resultadoEvaluacionDescripcion: resultado.descripcion,
+        cuotas: cuotas ?? null,
+        monto: monto ?? null,
+        fechaNacimiento: fecha || birthdate || null,
+        origen: "paso2",
+      });
+    } catch (registroError) {
+      console.error("Paso2 registrarRechazoEdad error", registroError);
+    }
+  };
+
+  const handleBirthdateChange = (event) => {
+    setBirthdate(event.target.value);
+    setError("");
+    rechazoRegistradoRef.current = false;
+  };
+
   const handleNext = () => {
     if (!birthdate) {
       setError("La fecha de nacimiento es obligatoria");
       return;
     }
     if (!isAdult(birthdate)) {
-      setError("Lamentablemente por el momento no podemos ofrecerle ningun prÃ©stamo. La polÃ­tica de MicroCuotas es atender a nuestros clientes a partir de los 21 aÃ±os. Esperamos en el futuro contar con ud. Muchas Gracias.");
+      setError("Lamentablemente por el momento no podemos ofrecerle ningun préstamo. La política de MicroCuotas es atender a nuestros clientes a partir de los 21 años. Comunicate al {CONTACTO} si necesitas asistencia.".replace('{CONTACTO}', CONTACTO));
+      registrarRechazoEdad(birthdate);
       return;
     }
     navigate("/paso3", { state: { cuotas, monto, birthdate } });
@@ -52,7 +85,7 @@ function Paso2() {
               id="birthdate"
               type="date"
               value={birthdate}
-              onChange={(e) => setBirthdate(e.target.value)}
+              onChange={handleBirthdateChange}
             />
             {error && (
               <div className="error-message_container">

@@ -3,3 +3,52 @@
 }
 html {
 }
+.App {
+  min-height: 100vh;
+  padding-bottom: 72px;
+  box-sizing: border-box;
+}
+
+.app-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: #1b1b1b;
+  color: #ffffff;
+  text-align: center;
+  padding: 12px 16px;
+  font-size: 14px;
+  z-index: 1000;
+}
+
+.global-loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  pointer-events: all;
+}
+
+.global-loading-spinner {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 6px solid rgba(43, 120, 228, 0.35);
+  border-top-color: #2b78e4;
+  animation: global-loading-spin 0.9s linear infinite;
+}
+
+@keyframes global-loading-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+

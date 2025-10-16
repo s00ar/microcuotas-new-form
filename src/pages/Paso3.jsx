@@ -1,122 +1,57 @@
+// src/pages/Paso3.jsx
 import "../css/Pasos.css";
 import { useNavigate, useLocation } from "react-router-dom";
 import React, { useState } from "react";
 import Banner from "../components/Header";
 import LottieAnim from "../components/LottieAnim";
+import { getCuilRecency } from "../services/solicitudes";
 
-// Firestore
-import {
-  getFirestore,
-  collection,
-  query,
-  where,
-  getDocs,
-  limit,
-  Timestamp,
-  setLogLevel,
-} from "firebase/firestore";
-
-setLogLevel?.("debug"); // activa logs verbosos de Firestore
+const CONTACTO = "1142681704";
+const TEST_CUIL = "20303948091";
+const WINDOW_DIAS_REINGRESO = 30;
 
 function Paso3() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { cuotas, monto, birthdate } = location.state || {};
-  const [cuil, setCuil] = useState("");
+  const { cuotas, monto, birthdate, cuil: initialCuil } = location.state || {};
+  const [cuil, setCuil] = useState(initialCuil || "");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const db = getFirestore();
-
-  const checkBcraStatus = async () => {
+  const checkStatus = async () => {
+    if (isLoading) return;
     setIsLoading(true);
     setError("");
 
-    console.groupCollapsed("Paso3.checkBcraStatus");
-    console.log("Inputs:", { cuil, cuotas, monto, birthdate, online: navigator.onLine });
-
     try {
-      // 0) Validaciones básicas
-      if (!cuil) {
+      const cuilClean = (cuil || "").replace(/\D/g, "");
+      if (!cuilClean) {
         setError("CUIL/CUIT no puede estar en blanco");
-        console.warn("Validación: cuil vacío");
         return;
       }
-      if (!/^\d{11}$/.test(cuil)) {
-        setError("Ingresa un CUIL/CUIT válido");
-        console.warn("Validación: formato inválido", { length: cuil.length, value: cuil });
-        return;
-      }
-
-      // 1) Gate de Firestore: 30 días
-      const treintaDiasMs = 30 * 24 * 60 * 60 * 1000;
-      const cutoffDate = new Date(Date.now() - treintaDiasMs);
-      const cutoffTs = Timestamp.fromDate(cutoffDate);
-      console.log("Firestore cutoff:", { cutoffDate: cutoffDate.toISOString(), cutoffTs });
-
-      const qRef = query(
-        collection(db, "clientes"),
-        where("cuil", "==", cuil),
-        where("timestamp", ">", cutoffTs),
-        limit(1)
-      );
-
-      console.time("Firestore:getDocs");
-      const snap = await getDocs(qRef);
-      console.timeEnd("Firestore:getDocs");
-      console.log("Firestore snapshot:", { empty: snap.empty, size: snap.size });
-
-      if (!snap.empty) {
-        const doc = snap.docs[0];
-        // log seguro: muestra solo campos clave
-        const data = doc.data?.() ?? {};
-        console.warn("Solicitud reciente encontrada", {
-          id: doc.id,
-          cuil: data.cuil,
-          timestamp: data.timestamp?.toDate?.()?.toISOString?.(),
-        });
-
-        setError(
-          "El CUIL ya fue registrado en los últimos 30 días. Solamente se puede ingresar una solicitud cada 30 días."
-        );
+      if (!/^\d{11}$/.test(cuilClean)) {
+        setError("Ingresá un CUIL/CUIT válido");
         return;
       }
 
-      // 2) BCRA
-      const url = `https://api.bcra.gob.ar/CentralDeDeudores/v1.0/Deudas/${cuil}`;
-      console.time("BCRA:fetch");
-      const response = await fetch(url, { method: "GET" }).catch((err) => {
-        console.error("Fetch error antes de recibir respuesta", err);
-        throw err;
-      });
-      console.timeEnd("BCRA:fetch");
-      console.log("BCRA response:", { ok: response.ok, status: response.status, url: response.url });
-
-      if (response.ok) {
-        console.log("BCRA OK. Navegando a /clientform");
-        navigate("/clientform", { state: { cuil, cuotas, monto, birthdate } });
-      } else {
-        setError("No fue posible verificar su situación en BCRA");
-        const text = await response.text().catch(() => "");
-        console.error("BCRA no OK", { status: response.status, body: text?.slice?.(0, 500) });
+      if (cuilClean !== TEST_CUIL) {
+        const { canRegister, lastDate } = await getCuilRecency(cuilClean, WINDOW_DIAS_REINGRESO);
+        if (!canRegister) {
+          const ultimaFecha =
+            lastDate instanceof Date ? lastDate.toLocaleDateString("es-AR") : "los últimos 30 días";
+          setError(
+            `El CUIL ingresado ya se registró en los últimos ${WINDOW_DIAS_REINGRESO} días (última carga ${ultimaFecha}). Comunicate al ${CONTACTO} para continuar con la gestión.`
+          );
+          return;
+        }
       }
+
+      navigate("/paso4", { state: { cuil: cuilClean, cuotas, monto, birthdate } });
     } catch (e) {
-      console.error("Excepción en checkBcraStatus", {
-        name: e?.name,
-        code: e?.code,
-        message: e?.message,
-        stack: e?.stack,
-      });
-      const msg =
-        e?.code === "permission-denied"
-          ? "No autorizado para leer datos. Vuelve a intentar."
-          : e?.code === "resource-exhausted"
-          ? "Se agotó el cupo de Firestore. Intenta más tarde."
-          : "Ocurrió un error al verificar el CUIL/BCRA.";
-      setError(msg);
+      console.error("Excepción en checkStatus", e);
+      setError("Ocurrió un error al verificar el CUIL. Intentá de nuevo.");
     } finally {
       setIsLoading(false);
-      console.groupEnd();
     }
   };
 
@@ -125,6 +60,7 @@ function Paso3() {
       <div className="banner__container">
         <Banner />
       </div>
+
       <div className="verification__container">
         <div className="verification__container__panel">
           <div className="verification__container__panel_left">
@@ -132,14 +68,17 @@ function Paso3() {
               <LottieAnim width={600} height={600} />
             </div>
           </div>
+
           <div className="verification__container__panel_right">
-            <h2>Por favor ingresa tu cuil/cuit</h2>
+            <h2>Por favor ingresá tu cuil/cuit</h2>
             <input
               className="verification__input"
               type="text"
-              placeholder="Ingresa tu cuil"
+              placeholder="Ingresá tu cuil"
+              value={cuil}
               onChange={(e) => setCuil(e.target.value.trim())}
             />
+
             {error && (
               <div className="error-message_container">
                 <div className="error-message_header">Error</div>
@@ -149,8 +88,9 @@ function Paso3() {
           </div>
         </div>
       </div>
+
       <div className="btn__container">
-        <button className="verification__btn" onClick={checkBcraStatus} disabled={isLoading}>
+        <button className="verification__btn" onClick={checkStatus} disabled={isLoading}>
           {isLoading ? <span className="spinner">Cargando...</span> : "Continuar"}
         </button>
       </div>

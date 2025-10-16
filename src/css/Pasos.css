@@ -60,7 +60,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100%; /* Ajusta según el tamaño de tu contenedor */
+    height: 100%; /* Ajusta segun el tamano del contenedor */
     position: relative; /* Necesario si la imagen necesita estar en un contexto posicionado */
     margin-top: 140px;
     margin-bottom: -640px;
@@ -133,13 +133,15 @@
     font-weight: 750;
     border: 0;
     margin-top: 1rem;
+    transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+    will-change: transform;
 }
 .verification__btn:hover {
     border: 0;
     background-color: #5366fa;
     color: rgb(248, 248, 248);
-    transform:scale(0.9);
-    transition: cubic-bezier(0.075, 0.82, 0.165, 1);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
 }
 
 
@@ -150,7 +152,7 @@
     background-color: #0078d7; /* Fondo azul similar a Windows */
     color: #ffffff; /* Texto blanco */
     padding: 10px 15px; /* Espaciado interno */
-    font-size: 16px; /* Tamaño de fuente */
+    font-size: 16px; /* Tamano de fuente */
     font-weight: 600; /* Fuente negrita */
 }
 
@@ -158,14 +160,14 @@
 .error-message_body {
     padding: 20px; /* Espaciado interno */
     color: #000000; /* Color de texto negro */
-    font-size: 14px; /* Tamaño de fuente */
+    font-size: 14px; /* Tamano de fuente */
 }
 
 /* Estilo para el mensaje de error */
 .error-message {
     padding: 20px; /* Espaciado interno */
     color: #000000; /* Color de texto negro */
-    font-size: 14px; /* Tamaño de fuente */
+    font-size: 14px; /* Tamano de fuente */
 }
 
 .error-message_container {
@@ -176,7 +178,7 @@
     margin-top: 1rem;
     border-radius: 8px; /* Bordes redondeados */
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Sombra suave */
-    z-index: 1000; /* Asegura que esté encima de otros elementos */
+    z-index: 1000; /* Asegura que esta encima de otros elementos */
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Fuente similar a Windows */
     overflow: hidden; /* Esconde el contenido que se sale del contenedor */
     display: flex; /* Flexbox para el contenido */
@@ -238,4 +240,164 @@
         position: relative;
         display: none;
     }
+}.verification__details {
+    margin-top: 4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.verification__details-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.05rem;
+    color: #0d205a;
+}
+
+.verification__details-label {
+    font-weight: 600;
+}
+
+.verification__details-value {
+    font-weight: 500;
+}
+
+.verification__details-icon {
+    color: #3aa655;
+    font-size: 1.2rem;
+}
+
+.verification__question-block {
+    margin-top: 3rem;
+    min-height: 120px;
+}
+
+.verification__question {
+    font-size: 1.8rem;
+    font-weight: 600;
+    color: #0d205a;
+}
+
+.verification__highlight {
+    font-weight: 700;
+}
+
+.verification__status-text {
+    font-size: 1.1rem;
+    color: #0d205a;
+    font-weight: 500;
+}
+
+.verification__actions {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 2rem;
+}
+
+.verification__btn--small {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.9rem;
+}
+
+.verification__btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+@media only screen and (max-width: 850px) {
+    .verification__details {
+        margin-top: 2rem;
+        gap: 1rem;
+    }
+    .verification__question-block {
+        margin-top: 2rem;
+        min-height: 100px;
+    }
+    .verification__actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+.rejection-title {
+    margin-top: 5rem;
+    font-size: 1.7rem;
+    font-weight: 600;
+    color: #0d205a;
+}
+
+.rejection-message {
+    margin-top: 2.5rem;
+    background-color: #e6f0ff;
+    border: 1px solid #c4d8ff;
+    border-radius: 18px;
+    padding: 1.75rem;
+    max-width: 420px;
+    font-size: 1.05rem;
+    text-align: center;
+    color: #0d205a;
+    line-height: 1.6;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+}
+
+.rejection-message p {
+    margin-bottom: 0.5rem;
+}
+
+@media only screen and (max-width: 850px) {
+    .rejection-title {
+        margin-top: 2.5rem;
+        text-align: center;
+    }
+
+    .rejection-message {
+        margin: 2rem auto 0 auto;
+    }
+}
+
+.verification__manual-caption {
+    margin-top: 1rem;
+    font-size: 0.95rem;
+    color: #0d205a;
+}
+
+.verification__manual-input {
+    display: block;
+    margin-top: 0.75rem;
+    max-width: 320px;
+    padding: 0.65rem 1rem;
+}
+
+.verification__form {
+    margin-top: 3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    max-width: 360px;
+}
+
+.verification__form-label {
+    display: flex;
+    flex-direction: column;
+    font-weight: 600;
+    color: #0d205a;
+    gap: 0.5rem;
+}
+
+.verification__form-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+}
+
+.success-title {
+  font-size: 2rem;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.success-message {
+  font-size: 1.1rem;
+  margin-bottom: 24px;
+  text-align: center;
+  line-height: 1.4;
 }

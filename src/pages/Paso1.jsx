@@ -40,17 +40,6 @@ function Paso1() {
             </div>
           </div>
           <div className="verification__container__panel_right">
-            <h2 htmlFor="cuotas">Cantidad de Cuotas:</h2>
-            <input
-              className="verification__input"
-              id="cuotas"
-              type="range"
-              min="2"
-              max="12"
-              value={cuotas}
-              onChange={handleCuotasChange}
-            />
-            <span>{`Cantidad de cuotas: ${cuotas}`}</span>
             <h2 htmlFor="monto">Monto Solicitado:</h2>
             <input
               className="verification__input"
@@ -61,8 +50,19 @@ function Paso1() {
               step="5000"
               value={monto}
               onChange={handleMontoChange}
-            />
-            <span>{`Monto: $${monto}`}</span>
+              />
+              <span>{`Monto: $${monto}`}</span>
+            <h2 htmlFor="cuotas">Cantidad de Cuotas:</h2>
+            <input
+              className="verification__input"
+              id="cuotas"
+              type="range"
+              min="2"
+              max="12"
+              value={cuotas}
+              onChange={handleCuotasChange}
+              />
+              <span>{`Cantidad de cuotas: ${cuotas}`}</span>
           </div>
         </div>
       </div>
@@ -71,6 +71,7 @@ function Paso1() {
           Solicitar crédito
         </button>
       </div>
+      <p className="version-text">v3.6.0</p>
     </div>
   );
 }

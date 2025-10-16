@@ -100,8 +100,8 @@ const fetchContactsData = async (startDate, endDate) => {
 
   const querySnapshot = await getDocs(q);
   let data = [];
-  querySnapshot.forEach((doc) => {
-    data.push(doc.data());
+  querySnapshot.forEach((docSnap) => {
+    data.push({ id: docSnap.id, ...docSnap.data() });
   });
   // console.log({ data });
   return data;
@@ -129,3 +129,4 @@ export {
   fetchContactsData
 };
 export default firebaseConfig;
+

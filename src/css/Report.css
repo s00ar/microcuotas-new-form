@@ -14,6 +14,36 @@
   justify-content: center; /* Center table container */
   padding-top: 2rem;
 }
+
+.search__container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 1.5rem;
+  width: 100%;
+  max-width: 640px;
+}
+
+.search__input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #c9c9c9;
+  font-size: 0.95rem;
+}
+
+.search__clear {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  background-color: #e0e0e0;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.search__clear:hover {
+  background-color: #c6c6c6;
+}
 th{
   text-decoration: none !important;
   font-size: 15px;
@@ -22,7 +52,6 @@ th{
   letter-spacing: 1px;
   padding: 10px;
   cursor: pointer;
-  border-radius: 25px;
 }
 
 table {
@@ -37,7 +66,36 @@ th, td {
 }
 
 th:hover {
-  background-color: #7ed4ff;
+  background-color: #bdbdbd;
+}
+
+.table__header-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.table__header-filter {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  border: 1px solid #c9c9c9;
+  cursor: pointer;
+  background-color: #ffffff;
+}
+
+.table__header-filter:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.table__motivo-detalle {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.85rem;
+  color: #656565;
 }
 
 td button {
@@ -60,13 +118,23 @@ td button:hover {
 .admin-background {
   background-color: #f7f6f6;
   width: 100%;
+  min-height: 100vh;
+  padding: 24px;
+  box-sizing: border-box;
 }
 
 .main__container {
-  min-width: 1200px;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
+  padding: 24px;
+  box-sizing: border-box;
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
 }
 
 .admin__title__card {
