@@ -245,10 +245,10 @@ function ClientForm() {
         </button>
         <div className="statement__text">
           <p>
-            Una vez que su solicitud de crÃ©dito sea aprobada por nuestro equipo de evaluaciÃ³n, un representante
-            comercial de Microcuotas se comunicarÃ¡ con usted para solicitar cualquier documentaciÃ³n adicional necesaria.
-            La transferencia del dinero se realizarÃ¡ previa firma del solicitante en la sucursal de Microcuotas, donde se
-            le entregarÃ¡ la carpeta de crÃ©dito con todos los detalles de su prÃ©stamo.
+            Una vez que su solicitud de crédito sea aprobada por nuestro equipo de evaluación, un representante
+            comercial de Microcuotas se comunicará¡ con usted para solicitar cualquier documentación adicional necesaria.
+            La transferencia del dinero se realizará¡ previa firma del solicitante en la sucursal de Microcuotas, donde se
+            le entregará¡ la carpeta de crédito con todos los detalles de su préstamo.
           </p>
         </div>
       </form>

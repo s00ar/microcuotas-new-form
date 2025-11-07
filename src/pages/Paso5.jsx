@@ -172,6 +172,10 @@ function Paso5() {
         } else {
           window.alert("Ya existe una solicitud con los datos ingresados.");
         }
+      } else if (error?.code === "permission-denied") {
+        window.alert(
+          "No pudimos registrar tu solicitud porque faltan permisos en la base de datos. Contactanos para que activemos el servicio e intentá nuevamente."
+        );
       } else {
         window.alert("Ocurrió un error al registrar la solicitud. Intentá nuevamente.");
       }

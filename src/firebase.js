@@ -20,12 +20,12 @@ import {
 import { ref, uploadBytes, getDownloadURL, getStorage } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyABW1gZYGY8u9OdqStvscD55w9ReZc2PnY",
-  authDomain: "formulario-reactjs-f7217.firebaseapp.com",
-  projectId: "formulario-reactjs-f7217",
-  storageBucket: "formulario-reactjs-f7217.appspot.com",
-  messagingSenderId: "382828826062",
-  appId: "1:382828826062:web:057a9e1ad89d9a0e94ef9f"
+  apiKey: "AIzaSyAb00iozgNSQhwWlV0dbOtDCnmqyvtmoa0",
+  authDomain: "microcuotas-e86ba.firebaseapp.com",
+  projectId: "microcuotas-e86ba",
+  storageBucket: "microcuotas-e86ba.appspot.com",
+  messagingSenderId: "52247316363",
+  appId: "1:52247316363:web:a63f793eae2e3b5db2118e",
 };
 
 const app = initializeApp(firebaseConfig);

@@ -19,7 +19,9 @@ function Paso3() {
   const [isLoading, setIsLoading] = useState(false);
 
   const checkStatus = async () => {
-    if (isLoading) return;
+    if (isLoading) {
+      return;
+    }
     setIsLoading(true);
     setError("");
 
@@ -30,26 +32,43 @@ function Paso3() {
         return;
       }
       if (!/^\d{11}$/.test(cuilClean)) {
-        setError("Ingresá un CUIL/CUIT válido");
+        setError("Ingresa un CUIL/CUIT valido");
         return;
       }
 
       if (cuilClean !== TEST_CUIL) {
-        const { canRegister, lastDate } = await getCuilRecency(cuilClean, WINDOW_DIAS_REINGRESO);
-        if (!canRegister) {
-          const ultimaFecha =
-            lastDate instanceof Date ? lastDate.toLocaleDateString("es-AR") : "los últimos 30 días";
-          setError(
-            `El CUIL ingresado ya se registró en los últimos ${WINDOW_DIAS_REINGRESO} días (última carga ${ultimaFecha}). Comunicate al ${CONTACTO} para continuar con la gestión.`
-          );
-          return;
+        try {
+          const { canRegister, lastDate } = await getCuilRecency(cuilClean, WINDOW_DIAS_REINGRESO);
+          if (!canRegister) {
+            const ultimaFecha =
+              lastDate instanceof Date ? lastDate.toLocaleDateString("es-AR") : "los ultimos 30 dias";
+            setError(
+              `El CUIL ingresado ya se registro en los ultimos ${WINDOW_DIAS_REINGRESO} dias (ultima carga ${ultimaFecha}). Comunicate al ${CONTACTO} para continuar con la gestion.`
+            );
+            return;
+          }
+        } catch (recencyError) {
+          console.warn("Paso3 getCuilRecency fallback", recencyError);
+          if (
+            recencyError?.code === "permission-denied" ||
+            recencyError?.code === "failed-precondition" ||
+            recencyError?.code === "unauthenticated"
+          ) {
+            // Sin permisos en Firestore: permitimos continuar con la simulacion local.
+          } else {
+            throw recencyError;
+          }
         }
       }
 
       navigate("/paso4", { state: { cuil: cuilClean, cuotas, monto, birthdate } });
-    } catch (e) {
-      console.error("Excepción en checkStatus", e);
-      setError("Ocurrió un error al verificar el CUIL. Intentá de nuevo.");
+    } catch (error) {
+      console.error("Excepcion en checkStatus", error);
+      const message =
+        error?.message && typeof error.message === "string"
+          ? error.message
+          : "Ocurrio un error al verificar el CUIL. Intenta de nuevo.";
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -70,13 +89,13 @@ function Paso3() {
           </div>
 
           <div className="verification__container__panel_right">
-            <h2>Por favor ingresá tu cuil/cuit</h2>
+            <h2>Por favor ingresa tu CUIL/CUIT</h2>
             <input
               className="verification__input"
               type="text"
-              placeholder="Ingresá tu cuil"
+              placeholder="Ingresa tu CUIL"
               value={cuil}
-              onChange={(e) => setCuil(e.target.value.trim())}
+              onChange={(event) => setCuil(event.target.value.trim())}
             />
 
             {error && (

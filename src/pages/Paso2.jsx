@@ -1,4 +1,4 @@
-import "../css/Pasos.css";
+ï»¿import "../css/Pasos.css";
 import { useNavigate, useLocation } from "react-router-dom";
 import React, { useRef, useState } from "react";
 import Banner from "../components/Header";
@@ -6,6 +6,8 @@ import LottieAnim from "../components/LottieAnim";
 import { saveRechazo, RESULTADOS_EVALUACION } from "../services/solicitudes";
 
 const CONTACTO = "1142681704";
+const MINIMUM_AGE_MONTHS = 18 * 12 + 6; // 18 aÃ±os y 6 meses
+const MINOR_ERROR_MESSAGE = `Debes ser mayor de 18 a\u00f1os y 6 meses para continuar. Comunicate al ${CONTACTO} si necesitas asistencia.`;
 
 function Paso2() {
   const navigate = useNavigate();
@@ -22,7 +24,7 @@ function Paso2() {
     if (today.getDate() < birth.getDate()) {
       months--;
     }
-    return months >= 222; // 18 aÃ±os y 6 meses
+    return months >= MINIMUM_AGE_MONTHS;
   };
 
   const registrarRechazoEdad = async (fecha) => {
@@ -59,7 +61,7 @@ function Paso2() {
       return;
     }
     if (!isAdult(birthdate)) {
-      setError("Lamentablemente por el momento no podemos ofrecerle ningun préstamo. La política de MicroCuotas es atender a nuestros clientes a partir de los 21 años. Comunicate al {CONTACTO} si necesitas asistencia.".replace('{CONTACTO}', CONTACTO));
+      setError(MINOR_ERROR_MESSAGE);
       registrarRechazoEdad(birthdate);
       return;
     }

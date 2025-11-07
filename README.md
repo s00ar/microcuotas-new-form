@@ -2,6 +2,20 @@ Changes made to version 1.1.5
 
 Added url input from the Simulador de Prestamos app to the Verification.jsx component
 
+# Documentación actualizada
+
+Consulta `docs/PROJECT_OVERVIEW.md` para un resumen de funcionalidades, cambios recientes y la guía rápida de pruebas automatizadas incorporadas.
+
+## Escenarios de prueba BCRA
+
+Utiliza los siguientes CUIL para simular las respuestas del paso de validación con el BCRA:
+- `20303948091`: solicitud aprobada.
+- `20303948092`: rechazo por demasiados productos activos.
+- `20303948093`: rechazo por mora activa en productos vigentes.
+- `20303948094`: rechazo por no registrar productos.
+- `20303948095`: rechazo por mora en el historial reciente.
+- `20303948096`: error o ausencia de datos reportados por el servicio.
+
 # Loans pre aproval form
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).

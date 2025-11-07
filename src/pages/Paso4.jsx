@@ -76,6 +76,120 @@ const extractName = (payload) => {
   return "";
 };
 
+const buildPeriod = (periodo, entidades) => ({
+  periodo,
+  entidades: entidades.map(({ entidad, situacion }) => ({
+    entidad,
+    situacion,
+  })),
+});
+
+export const BCRA_TEST_CUILS = Object.freeze({
+  APROBADO: "20303948091",
+  DEMASIADOS_ACTIVOS: "20303948092",
+  MORA_ACTIVA: "20303948093",
+  SIN_PRODUCTOS: "20303948094",
+  HISTORIAL_MORA: "20303948095",
+  SIN_DATOS: "20303948096",
+  API_404: "20303948097",
+  API_500: "20303948098",
+  RESPUESTA_SIN_NOMBRE: "20303948099",
+  RESPUESTA_INVALIDA: "20303948100",
+});
+
+const MOCK_BCRA_RESPONSES = Object.freeze({
+  [BCRA_TEST_CUILS.APROBADO]: {
+    results: {
+      identificacion: 20303948091,
+      denominacion: "CLIENTE DE PRUEBA",
+      periodos: [
+        buildPeriod("202507", [
+          { entidad: "BANCO DE LA CIUDAD DE BUENOS AIRES", situacion: 1 },
+          { entidad: "MERCADOLIBRE S.R.L.", situacion: 1 },
+        ]),
+        buildPeriod("202506", [
+          { entidad: "RECUPERO DE ACTIVOS FIDEICOMISO FINANCIERO", situacion: 1 },
+        ]),
+      ],
+    },
+  },
+  [BCRA_TEST_CUILS.DEMASIADOS_ACTIVOS]: {
+    results: {
+      identificacion: 20303948092,
+      denominacion: "BCRA TEST DEMASIADOS ACTIVOS",
+      periodos: [
+        buildPeriod("202507", [
+          { entidad: "BANCO 1", situacion: 1 },
+          { entidad: "BANCO 2", situacion: 1 },
+          { entidad: "BANCO 3", situacion: 1 },
+          { entidad: "BANCO 4", situacion: 1 },
+          { entidad: "BANCO 5", situacion: 1 },
+          { entidad: "BANCO 6", situacion: 1 },
+        ]),
+      ],
+    },
+  },
+  [BCRA_TEST_CUILS.MORA_ACTIVA]: {
+    results: {
+      identificacion: 20303948093,
+      denominacion: "BCRA TEST MORA ACTIVA",
+      periodos: [
+        buildPeriod("202507", [
+          { entidad: "BANCO MOROSO", situacion: 3 },
+          { entidad: "BANCO NORMAL", situacion: 1 },
+        ]),
+        buildPeriod("202506", [
+          { entidad: "BANCO HISTORICO", situacion: 1 },
+        ]),
+      ],
+    },
+  },
+  [BCRA_TEST_CUILS.SIN_PRODUCTOS]: {
+    results: {
+      identificacion: 20303948094,
+      denominacion: "BCRA TEST SIN PRODUCTOS",
+      periodos: [],
+    },
+  },
+  [BCRA_TEST_CUILS.HISTORIAL_MORA]: {
+    results: {
+      identificacion: 20303948095,
+      denominacion: "BCRA TEST HISTORICO",
+      periodos: [
+        buildPeriod("202507", [
+          { entidad: "BANCO ACTUAL", situacion: 1 },
+        ]),
+        buildPeriod("202506", [
+          { entidad: "BANCO HISTORICO", situacion: 3 },
+        ]),
+      ],
+    },
+  },
+  [BCRA_TEST_CUILS.SIN_DATOS]: {
+    error: "Simulamos un error genérico en la consulta al BCRA para este CUIL de prueba.",
+  },
+  [BCRA_TEST_CUILS.API_404]: {
+    error: "Simulamos un error 404 del servicio del BCRA.",
+    status: 404,
+  },
+  [BCRA_TEST_CUILS.API_500]: {
+    error: "Simulamos un error interno (500) del servicio del BCRA.",
+    status: 500,
+  },
+  [BCRA_TEST_CUILS.RESPUESTA_SIN_NOMBRE]: {
+    results: {
+      identificacion: 20303948099,
+      denominacion: "",
+      periodos: [
+        buildPeriod("202507", [
+          { entidad: "BANCO SIN NOMBRE", situacion: 1 },
+        ]),
+      ],
+    },
+  },
+  [BCRA_TEST_CUILS.RESPUESTA_INVALIDA]: null,
+});
+
 function Paso4() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -113,40 +227,36 @@ function Paso4() {
     const fetchData = async () => {
       setIsLoading(true);
       setError("");
-
-      if (cuil === "20303948091") {
-        const mockPayload = {
-          status: 200,
-          results: {
-            identificacion: 20303948091,
-            denominacion: "CLIENTE DE PRUEBA",
-            periodos: [
-              {
-                periodo: "202507",
-                entidades: [
-                  { entidad: "BANCO DE LA CIUDAD DE BUENOS AIRES", situacion: 1 },
-                  { entidad: "MERCADOLIBRE S.R.L.", situacion: 1 }
-                ],
-              },
-              {
-                periodo: "202506",
-                entidades: [
-                  { entidad: "RECUPERO DE ACTIVOS FIDEICOMISO FINANCIERO", situacion: 1 },
-                ],
-              },
-            ],
-          },
-        };
-        const normalizedResults = mockPayload.results;
-        const name = extractName(normalizedResults);
-        const normalized = String(name || "").trim();
-        setBcraData(normalizedResults);
-        setPersonName(normalized.toUpperCase());
-        setIsLoading(false);
-        return;
-      }
-
       try {
+        const mockScenario = MOCK_BCRA_RESPONSES[cuil];
+        if (mockScenario !== undefined) {
+          if (mockScenario && typeof mockScenario === "object" && "error" in mockScenario) {
+            const errorMessage = mockScenario.error || "Error en la consulta simulada al BCRA.";
+            const status = mockScenario.status;
+            const err = new Error(errorMessage);
+            err.status = status;
+            err.mockMessage = errorMessage;
+            throw err;
+          }
+
+          const normalizedResults =
+            typeof mockScenario === "object" && mockScenario !== null && "results" in mockScenario
+              ? mockScenario.results
+              : mockScenario;
+          const name = extractName(normalizedResults);
+          const normalized = String(name || "").trim();
+          if (!normalized) {
+            const err = new Error("Respuesta sin nombre");
+            err.mockMessage = "La respuesta simulada no trae denominación.";
+            throw err;
+          }
+          if (isMounted) {
+            setBcraData(normalizedResults);
+            setPersonName(normalized.toUpperCase());
+          }
+          return;
+        }
+
         const endpoint = `https://api.bcra.gob.ar/CentralDeDeudores/v1.0/Deudas/${cuil}`;
         const response = await fetch(endpoint, {
           headers: {
@@ -197,15 +307,19 @@ function Paso4() {
           setBcraData(null);
           setPersonName("");
           const statusInfo = err?.status ? ` (estado ${err.status})` : "";
-          const detailMessage =
-            err?.message &&
-            err.message !== `BCRA status ${err?.status ?? ""}` &&
-            err.message !== "Failed to fetch"
-              ? ` Detalle: ${err.message}`
-              : "";
-          setError(
-            `No pudimos obtener tu nombre desde BCRA${statusInfo}. Reintenta o verifica el CUIL.${detailMessage}`
-          );
+          if (err?.mockMessage) {
+            setError(`${err.mockMessage}${statusInfo}`);
+          } else {
+            const detailMessage =
+              err?.message &&
+              err.message !== `BCRA status ${err?.status ?? ""}` &&
+              err.message !== "Failed to fetch"
+                ? ` Detalle: ${err.message}`
+                : "";
+            setError(
+              `No pudimos obtener tu nombre desde BCRA${statusInfo}. Reintenta o verifica el CUIL.${detailMessage}`
+            );
+          }
         }
       } finally {
         if (isMounted) {
@@ -276,72 +390,104 @@ function Paso4() {
     }
   };
 
-  const normalizePeriodValue = (value) => {
-    if (typeof value === "number") {
-      return value;
-    }
-    if (typeof value === "string") {
+const normalizePeriodValue = (value) => {
+  if (typeof value === "number") {
+    return value;
+  }
+  if (typeof value === "string") {
       const parsed = Number(value);
       return Number.isNaN(parsed) ? 0 : parsed;
-    }
+  }
+  return 0;
+};
+
+const normalizeSituacionValue = (value) => {
+  if (value === null || value === undefined) {
     return 0;
-  };
-
-  const evaluateBcraEligibility = () => {
-    if (!bcraData) {
-      return { ok: false, message: rejectionMessages.missingData, reason: "bcra_sin_datos" };
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  if (typeof value === "object") {
+    if (value === null) {
+      return 0;
     }
-
-    const periodos = Array.isArray(bcraData?.periodos) ? [...bcraData.periodos] : [];
-    if (!periodos.length) {
-      return { ok: false, message: rejectionMessages.noProducts, reason: "bcra_sin_productos" };
+    if ("codigo" in value) {
+      return normalizeSituacionValue(value.codigo);
     }
+    if ("code" in value) {
+      return normalizeSituacionValue(value.code);
+    }
+    if ("valor" in value) {
+      return normalizeSituacionValue(value.valor);
+    }
+    if ("value" in value) {
+      return normalizeSituacionValue(value.value);
+    }
+  }
+  return 0;
+};
 
-    periodos.sort((a, b) => normalizePeriodValue(b?.periodo) - normalizePeriodValue(a?.periodo));
-    const normalizeEntities = (period) =>
+const evaluateBcraEligibility = () => {
+  if (!bcraData) {
+    return { ok: false, message: rejectionMessages.missingData, reason: "bcra_sin_datos" };
+  }
+
+  const periodos = Array.isArray(bcraData?.periodos) ? [...bcraData.periodos] : [];
+  if (!periodos.length) {
+    console.warn("Paso4.evaluateBcraEligibility sin periodos en BCRA", bcraData);
+    return { ok: false, message: rejectionMessages.noProducts, reason: "bcra_sin_productos" };
+  }
+
+  periodos.sort((a, b) => normalizePeriodValue(b?.periodo) - normalizePeriodValue(a?.periodo));
+  const normalizeEntities = (period) =>
       Array.isArray(period?.entidades) ? period.entidades.filter(Boolean) : [];
 
-    const [activePeriod, ...restPeriods] = periodos;
-    const activeEntities = normalizeEntities(activePeriod);
-    const historicalEntities = restPeriods.flatMap((period) => normalizeEntities(period));
+  const [activePeriod, ...restPeriods] = periodos;
+  const activeEntities = normalizeEntities(activePeriod);
+  const historicalEntities = restPeriods.flatMap((period) => normalizeEntities(period));
 
-    if (activeEntities.length > 5) {
-      return { ok: false, message: rejectionMessages.tooManyActive, reason: "bcra_demasiados_activos" };
+  if (activeEntities.length >= 5) {
+    return { ok: false, message: rejectionMessages.tooManyActive, reason: "bcra_demasiados_activos" };
+  }
+
+  if (activeEntities.length > 0) {
+    const hasActiveMorosos = activeEntities.some((entity) => {
+      const situacion = normalizeSituacionValue(entity?.situacion);
+      return situacion >= 2;
+    });
+    if (hasActiveMorosos) {
+      return { ok: false, message: rejectionMessages.activeMora, reason: "bcra_mora_activa" };
     }
-
-    if (activeEntities.length > 0) {
-      const hasActiveMorosos = activeEntities.some((entity) => {
-        const situacion = Number(entity?.situacion ?? 0);
-        return situacion >= 2;
-      });
-      if (hasActiveMorosos) {
-        return { ok: false, message: rejectionMessages.activeMora, reason: "bcra_mora_activa" };
-      }
-    } else {
+  } else {
       if (!historicalEntities.length) {
-        return { ok: false, message: rejectionMessages.noProducts, reason: "bcra_sin_productos" };
-      }
-      const allHistoricalSituacionUno = historicalEntities.every((entity) => {
-        const situacion = Number(entity?.situacion ?? 0);
-        return situacion <= 1;
-      });
-      if (!allHistoricalSituacionUno) {
-        return { ok: false, message: rejectionMessages.historicalMora, reason: "bcra_mora_historica" };
-      }
+      return { ok: false, message: rejectionMessages.noProducts, reason: "bcra_sin_productos" };
+    }
+    const allHistoricalSituacionUno = historicalEntities.every((entity) => {
+      const situacion = normalizeSituacionValue(entity?.situacion);
+      return situacion <= 1;
+    });
+    if (!allHistoricalSituacionUno) {
+      return { ok: false, message: rejectionMessages.historicalMora, reason: "bcra_mora_historica" };
+    }
       return { ok: true };
     }
 
     if (!historicalEntities.length) {
       return { ok: true };
-    }
+  }
 
-    const hasHistoricalAboveTwo = historicalEntities.some((entity) => {
-      const situacion = Number(entity?.situacion ?? 0);
-      return situacion > 2;
-    });
-    if (hasHistoricalAboveTwo) {
-      return { ok: false, message: rejectionMessages.historicalMora, reason: "bcra_mora_historica" };
-    }
+  const hasHistoricalAboveTwo = historicalEntities.some((entity) => {
+    const situacion = normalizeSituacionValue(entity?.situacion);
+    return situacion > 2;
+  });
+  if (hasHistoricalAboveTwo) {
+    return { ok: false, message: rejectionMessages.historicalMora, reason: "bcra_mora_historica" };
+  }
 
     return { ok: true };
   };

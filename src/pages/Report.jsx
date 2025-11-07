@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth, db, deleteDoc, fetchContactsData, logout } from "../firebase";
 import { Link, useNavigate } from "react-router-dom";
-import { query, collection, getDocs, where, doc } from "firebase/firestore";
+import { doc } from "firebase/firestore";
 import "../css/Report.css";
 import Logo from "../assets/logo_textoblanco_fondotransp.png";
 import { useGlobalLoadingEffect } from "../components/GlobalLoadingProvider";
@@ -21,6 +21,80 @@ const headerStyle = {
 
 const normalizeText = (value) => String(value || "").toLowerCase().trim();
 
+const toSafeString = (value) => (value === undefined || value === null ? "" : String(value));
+
+const parseDateInput = (value, { endOfDay = false } = {}) => {
+  if (!value) {
+    return null;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  date.setHours(endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
+  return date;
+};
+
+const firebaseTimestampToDate = (timestamp) => {
+  if (!timestamp || typeof timestamp.seconds !== "number") {
+    return null;
+  }
+  const millis = timestamp.seconds * 1000 + (timestamp.nanoseconds || 0) / 1_000_000;
+  const date = new Date(millis);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const buildClienteDerivedData = (cliente) => {
+  const timestampDate = firebaseTimestampToDate(cliente.timestamp);
+  const timestampLabel = timestampDate ? timestampDate.toDateString() : "";
+  const normalizedEstado = normalizeText(cliente.estado);
+  const rejectionReason = toSafeString(cliente.motivoRechazo);
+  const resultadoDescripcion = toSafeString(cliente.resultadoEvaluacionDescripcion);
+  const aceptada = normalizedEstado === "aceptada";
+  const resolvedMotivo =
+    resultadoDescripcion ||
+    (aceptada ? "Procesamiento satisfactorio" : rejectionReason || "Motivo no informado");
+  const normalizedResolvedMotivo = normalizeText(resolvedMotivo);
+  const rawMotivoCodigo = toSafeString(
+    cliente.resultadoEvaluacionCodigo ?? cliente.motivoRechazoCodigo ?? ""
+  ).trim();
+  const hasCodigo =
+    rawMotivoCodigo &&
+    !["", "null", "undefined"].includes(rawMotivoCodigo.toLowerCase());
+  const motivoOptionValue = hasCodigo ? rawMotivoCodigo : normalizedResolvedMotivo || resolvedMotivo;
+
+  const searchableValues = [
+    cliente.cuil,
+    cliente.nombre,
+    cliente.apellido,
+    cliente.telefono,
+    cliente.email,
+    cliente.estado,
+    cliente.motivoRechazo,
+    cliente.motivoRechazoCodigo,
+    cliente.resultadoEvaluacionDescripcion,
+    cliente.resultadoEvaluacionCodigo,
+    cliente.cuotas,
+    cliente.monto,
+    timestampLabel,
+    resolvedMotivo,
+  ].map(toSafeString);
+  const searchableText = normalizeText(searchableValues.join(" "));
+
+  return {
+    ...cliente,
+    _timestampDate: timestampDate,
+    _timestampLabel: timestampLabel,
+    _searchableText: searchableText,
+    _resolvedMotivo: resolvedMotivo,
+    _normalizedMotivo: normalizedResolvedMotivo,
+    _motivoOptionValue: motivoOptionValue,
+    _estadoNormalized: normalizedEstado,
+  };
+};
+
+const toIsoStringOrNull = (date) => (date ? date.toISOString() : null);
+
 const COLUMN_FILTER_DEFAULTS = Object.freeze({
   cuil: "todos",
   nombre: "todos",
@@ -35,82 +109,63 @@ export default function Admin() {
   const [fullClientesData, setFullClientesData] = useState([]);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
+  const [appliedStartDate, setAppliedStartDate] = useState(null);
+  const [appliedEndDate, setAppliedEndDate] = useState(null);
   const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(20);
   const [sortMethod, setSortMethod] = useState(""); // New state for sorting method
   const [estadoFiltro, setEstadoFiltro] = useState("todos");
   const [motivoFiltro, setMotivoFiltro] = useState("todos");
   const [columnFilters, setColumnFilters] = useState(() => ({ ...COLUMN_FILTER_DEFAULTS }));
   const [busquedaGeneral, setBusquedaGeneral] = useState("");
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const lastFetchParamsRef = useRef({ start: undefined, end: undefined });
 
   useGlobalLoadingEffect(loading || isLoadingData);
 
-  useEffect(() => {
-    const fetchDataFromFirestore = async () => {
+  const loadClientes = useCallback(
+    async ({ start, end, force = false } = {}) => {
+      const normalizedStart = start ?? null;
+      const normalizedEnd = end ?? null;
+
+      if (
+        !force &&
+        lastFetchParamsRef.current.start === normalizedStart &&
+        lastFetchParamsRef.current.end === normalizedEnd
+      ) {
+        return;
+      }
+
       setIsLoadingData(true);
       try {
-        const clientesCollection = collection(db, "clientes");
-        const querySnapshot = await getDocs(clientesCollection);
-        const data = querySnapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        }));
-
-        setFullClientesData(data);
+        const rows = await fetchContactsData(normalizedStart, normalizedEnd);
+        const enrichedRows = Array.isArray(rows)
+          ? rows.map(buildClienteDerivedData)
+          : [];
+        setFullClientesData(enrichedRows);
         setPage(0);
+        lastFetchParamsRef.current = { start: normalizedStart, end: normalizedEnd };
       } catch (error) {
-        console.error("Error fetching data from Firestore:", error.message);
+        console.error("Error fetching data:", error);
       } finally {
         setIsLoadingData(false);
       }
-    };
+    },
+    [fetchContactsData, setFullClientesData, setIsLoadingData, setPage]
+  );
 
-    if (!loading && user) {
-      fetchDataFromFirestore();
+  useEffect(() => {
+    if (loading) {
+      return;
     }
-  }, [loading, user]);
 
-  const checkAuth = async () => {
-    if (!user) return navigate("/login");
-    if (user) return navigate("/report");
-
-    const uid = user && user.uid;
-    const q = query(collection(db, "users"), where("uid", "==", uid));
-    const doc = await getDocs(q);
-    const data = [];
-    doc.forEach((doc) => {
-      data.push(doc.data());
-    });
-    setIsLoadingData(true);
-    try {
-      let rows = await fetchContactsData();
-      setFullClientesData(rows);
-      setPage(0);
-    } finally {
-      setIsLoadingData(false);
+    if (!user) {
+      navigate("/login");
+      return;
     }
-  };
 
-  const getTime = (fechaSolicitud) => {
-    if (fechaSolicitud && fechaSolicitud.seconds !== undefined) {
-      const nanoseconds = fechaSolicitud.nanoseconds || 0;
-      const fireBaseTime = new Date(
-        fechaSolicitud.seconds * 1000 + nanoseconds / 1000000
-      );
-      return fireBaseTime;
-    } else {
-      return null;
-    }
-  };
-
-  const getDay = (fechaSolicitud) => {
-    const fireBaseTime = getTime(fechaSolicitud);
-    if (!fireBaseTime) {
-      return "";
-    }
-    return fireBaseTime.toDateString();
-  };
+    loadClientes();
+  }, [loading, user, navigate, loadClientes]);
 
   const toExport = () => {
     let header = [
@@ -131,7 +186,7 @@ export default function Admin() {
       "fechaSolicitud",
       "\n",
     ];
-    let csvRows = fullClientesData.map((e) => {
+    let csvRows = filteredData.map((e) => {
       let _ = [];
       _[0] = e.nombre;
       _[1] = e.apellido;
@@ -145,7 +200,7 @@ export default function Admin() {
       _[9] = e.motivoRechazoCodigo || "";
       _[10] = e.ingresoMensual || "";
       _[11] = e.fechaIngreso ? `"${e.fechaIngreso}"` : "";
-      const fecha = getTime(e.timestamp);
+      const fecha = e._timestampDate || firebaseTimestampToDate(e.timestamp);
       _[12] = fecha ? fecha.toISOString() : "";
       _[13] = "\n";
       return _;
@@ -161,10 +216,6 @@ export default function Admin() {
     alert("Archivo exportado correctamente");
   };
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
   const handleBusquedaChange = (event) => {
     const value = event.target.value;
     setBusquedaGeneral(value);
@@ -176,17 +227,22 @@ export default function Admin() {
     setPage(0);
   };
 
-  const filterData = async () => {
-    setIsLoadingData(true);
-    try {
-      const rows = await fetchContactsData(startDate, endDate);
-      setFullClientesData(rows);
-      setPage(0);
-    } catch (error) {
-      console.error("Error filtering data:", error);
-    } finally {
-      setIsLoadingData(false);
+  const filterData = () => {
+    const startBoundary = parseDateInput(startDate);
+    const endBoundary = parseDateInput(endDate, { endOfDay: true });
+
+    if (startBoundary && endBoundary && startBoundary > endBoundary) {
+      alert("La fecha inicial no puede ser posterior a la fecha final.");
+      return;
     }
+
+    setAppliedStartDate(startBoundary);
+    setAppliedEndDate(endBoundary);
+    setPage(0);
+    loadClientes({
+      start: toIsoStringOrNull(startBoundary),
+      end: toIsoStringOrNull(endBoundary),
+    });
   };
 
   const handleDelete = async (recordId) => {
@@ -215,28 +271,56 @@ export default function Admin() {
     sortByNombreAscend: (a, b) => String(a.nombre || "").localeCompare(String(b.nombre || "")),
     sortByApellidoAscend: (a, b) => String(a.apellido || "").localeCompare(String(b.apellido || "")),
     sortByTelefonoAscend: (a, b) => String(a.telefono || "").localeCompare(String(b.telefono || "")),
-    sortByFechaSolicitudAscend: (a, b) => (getTime(a.timestamp) || 0) - (getTime(b.timestamp) || 0),
-    sortByFechaSolicitudDescend: (a, b) => (getTime(b.timestamp) || 0) - (getTime(a.timestamp) || 0),
+    sortByFechaSolicitudAscend: (a, b) =>
+      (a._timestampDate?.getTime() || 0) - (b._timestampDate?.getTime() || 0),
+    sortByFechaSolicitudDescend: (a, b) =>
+      (b._timestampDate?.getTime() || 0) - (a._timestampDate?.getTime() || 0),
   };
 
   const filteredData = useMemo(() => {
     let filtered = Array.isArray(fullClientesData) ? [...fullClientesData] : [];
 
+    if (appliedStartDate || appliedEndDate) {
+      filtered = filtered.filter((cliente) => {
+        const fecha = cliente._timestampDate || firebaseTimestampToDate(cliente.timestamp);
+        if (!fecha) {
+          return false;
+        }
+        if (appliedStartDate && fecha < appliedStartDate) {
+          return false;
+        }
+        if (appliedEndDate && fecha > appliedEndDate) {
+          return false;
+        }
+        return true;
+      });
+    }
+
     if (estadoFiltro !== "todos") {
-      filtered = filtered.filter((cliente) =>
-        estadoFiltro === "aceptada" ? cliente.estado === "aceptada" : cliente.estado === "rechazada"
-      );
+      filtered = filtered.filter((cliente) => {
+        const normalizedEstado = cliente._estadoNormalized || normalizeText(cliente.estado);
+        return estadoFiltro === "aceptada"
+          ? normalizedEstado === "aceptada"
+          : normalizedEstado === "rechazada";
+      });
     }
 
     if (motivoFiltro !== "todos") {
-      const normalizedFilter = normalizeText(motivoFiltro || "");
       filtered = filtered.filter((cliente) => {
-        const codigo = (cliente.resultadoEvaluacionCodigo ?? cliente.motivoRechazoCodigo ?? "").toString();
-        const descripcion = cliente.resultadoEvaluacionDescripcion || cliente.motivoRechazo || "";
-        const normalizedDescripcion = normalizeText(descripcion);
-        const codeMatches = codigo && motivoFiltro === codigo;
-        const descriptionMatches = normalizedFilter && normalizedFilter === normalizedDescripcion;
-        return codeMatches || descriptionMatches;
+        if (cliente._motivoOptionValue) {
+          return cliente._motivoOptionValue === motivoFiltro;
+        }
+        const codigo = toSafeString(
+          cliente.resultadoEvaluacionCodigo ?? cliente.motivoRechazoCodigo ?? ""
+        ).trim();
+        if (codigo && motivoFiltro === codigo) {
+          return true;
+        }
+        const normalizedDescripcion = normalizeText(
+          toSafeString(cliente.resultadoEvaluacionDescripcion || cliente.motivoRechazo)
+        );
+        const normalizedFilter = normalizeText(motivoFiltro || "");
+        return normalizedFilter && normalizedFilter === normalizedDescripcion;
       });
     }
 
@@ -257,34 +341,56 @@ export default function Admin() {
     }
 
     if (columnFilters.fecha && columnFilters.fecha !== "todos") {
-      filtered = filtered.filter((cliente) => getDay(cliente.timestamp) === columnFilters.fecha);
+      filtered = filtered.filter((cliente) => {
+        if (cliente._timestampLabel) {
+          return cliente._timestampLabel === columnFilters.fecha;
+        }
+        const fallbackDate = firebaseTimestampToDate(cliente.timestamp);
+        return fallbackDate ? fallbackDate.toDateString() === columnFilters.fecha : false;
+      });
     }
 
     const normalizedSearch = normalizeText(busquedaGeneral);
     if (normalizedSearch) {
       filtered = filtered.filter((cliente) => {
-        const values = [
-          cliente.cuil,
-          cliente.nombre,
-          cliente.apellido,
-          cliente.telefono,
-          cliente.email,
-          cliente.estado,
-          cliente.motivoRechazo,
-          cliente.motivoRechazoCodigo,
-          cliente.resultadoEvaluacionDescripcion,
-          cliente.resultadoEvaluacionCodigo,
-          cliente.cuotas,
-          cliente.monto,
-          getDay(cliente.timestamp),
-        ];
-        return values.some((value) => normalizeText(value).includes(normalizedSearch));
+        const searchableText =
+          cliente._searchableText ||
+          normalizeText(
+            [
+              cliente.cuil,
+              cliente.nombre,
+              cliente.apellido,
+              cliente.telefono,
+              cliente.email,
+              cliente.estado,
+              cliente.motivoRechazo,
+              cliente.motivoRechazoCodigo,
+              cliente.resultadoEvaluacionDescripcion,
+              cliente.resultadoEvaluacionCodigo,
+              cliente.cuotas,
+              cliente.monto,
+              cliente._timestampLabel ||
+                (firebaseTimestampToDate(cliente.timestamp)?.toDateString() || ""),
+            ]
+              .map(toSafeString)
+              .join(" ")
+          );
+        return searchableText.includes(normalizedSearch);
       });
     }
 
     const sorter = sortMethod && sorters[sortMethod];
     return sorter ? [...filtered].sort(sorter) : filtered;
-  }, [fullClientesData, estadoFiltro, motivoFiltro, columnFilters, busquedaGeneral, sortMethod]);
+  }, [
+    fullClientesData,
+    estadoFiltro,
+    motivoFiltro,
+    columnFilters,
+    busquedaGeneral,
+    sortMethod,
+    appliedStartDate,
+    appliedEndDate,
+  ]);
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil((filteredData.length || 0) / pageSize)),
@@ -360,7 +466,9 @@ export default function Admin() {
       if (cliente.telefono) {
         sets.telefono.add(String(cliente.telefono));
       }
-      const fecha = getDay(cliente.timestamp);
+      const fecha =
+        cliente._timestampLabel ||
+        (firebaseTimestampToDate(cliente.timestamp)?.toDateString() || "");
       if (fecha) {
         sets.fecha.add(fecha);
       }
@@ -381,17 +489,29 @@ export default function Admin() {
     const seen = new Map();
 
     fullClientesData.forEach((cliente) => {
-      const codigo = (cliente.resultadoEvaluacionCodigo ?? cliente.motivoRechazoCodigo ?? "").toString();
-      const descripcionBase =
-        cliente.resultadoEvaluacionDescripcion ||
-        cliente.motivoRechazo ||
-        (cliente.estado === "aceptada" ? "Procesamiento satisfactorio" : "Motivo no informado");
-      const descripcion = descripcionBase || "Motivo no informado";
-      const normalizedDescripcion = normalizeText(descripcion);
-      const hasCodigo = codigo && !["", "null", "undefined"].includes(codigo);
-      const value = hasCodigo ? codigo : (normalizedDescripcion || descripcion);
+      const derivedValue = cliente._motivoOptionValue;
+      const derivedLabel = cliente._resolvedMotivo || "Motivo no informado";
+      let value = derivedValue;
+      let label = derivedLabel;
+
+      if (!value) {
+        const codigo = toSafeString(
+          cliente.resultadoEvaluacionCodigo ?? cliente.motivoRechazoCodigo ?? ""
+        ).trim();
+        const descripcionBase =
+          cliente.resultadoEvaluacionDescripcion ||
+          cliente.motivoRechazo ||
+          (normalizeText(cliente.estado) === "aceptada"
+            ? "Procesamiento satisfactorio"
+            : "Motivo no informado");
+        label = descripcionBase || "Motivo no informado";
+        const normalizedDescripcion = normalizeText(label);
+        const hasCodigo = codigo && !["", "null", "undefined"].includes(codigo.toLowerCase());
+        value = hasCodigo ? codigo : normalizedDescripcion || label;
+      }
+
       if (!seen.has(value)) {
-        seen.set(value, descripcion);
+        seen.set(value, label);
       }
     });
 
@@ -507,7 +627,7 @@ export default function Admin() {
           <input
             type="text"
             className="search__input"
-            placeholder="Buscar por CUIL, tel\u00E9fono, nombre, email..."
+            placeholder="Buscar por CUIL, teléfono, nombre, email..."
             value={busquedaGeneral}
             onChange={handleBusquedaChange}
           />
@@ -679,21 +799,20 @@ export default function Admin() {
             </thead>
             <tbody>
               {paginatedrecords.map((cliente, index) => {
-                const resultadoDescripcion =
-                  cliente.resultadoEvaluacionDescripcion ||
-                  (cliente.estado === "aceptada"
-                    ? "Procesamiento satisfactorio"
-                    : cliente.motivoRechazo || "Motivo no informado");
+                const estadoNormalizado = cliente._estadoNormalized || normalizeText(cliente.estado);
+                const resultadoDescripcion = cliente._resolvedMotivo || "Motivo no informado";
                 const mostrarDetalle =
-                  cliente.estado === "rechazada" &&
+                  estadoNormalizado === "rechazada" &&
                   cliente.motivoRechazo &&
                   cliente.motivoRechazo !== resultadoDescripcion;
-                const fechaFormateada = getDay(cliente.timestamp) || "-";
+                const fechaFormateada =
+                  cliente._timestampLabel ||
+                  (firebaseTimestampToDate(cliente.timestamp)?.toDateString() || "-");
                 const telefonoVisible = cliente.telefono || "-";
                 const estadoVisible =
-                  cliente.estado === "aceptada"
+                  estadoNormalizado === "aceptada"
                     ? "Si"
-                    : cliente.estado === "rechazada"
+                    : estadoNormalizado === "rechazada"
                     ? "No"
                     : "Pendiente";
                 return (

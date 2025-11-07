@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /clientes/{document} {
+      allow read: if false;
+      allow update, delete: if false;
+
+      allow create: if isValidSolicitud();
+
+      function isValidSolicitud() {
+        return request.resource.data.keys().hasAll(["cuil", "estado", "timestamp"]) &&
+          request.resource.data.cuil is string &&
+          request.resource.data.cuil.matches("^[0-9]{11,}$") &&
+          request.resource.data.estado in ["aceptada", "rechazada"];
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

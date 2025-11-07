@@ -23,7 +23,11 @@ function Login() {
 
   // 2) Efecto que suscribe a Firestore cuando el usuario está logueado
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setLoadingClients(false);
+      setClients([]);
+      return;
+    }
 
     setLoadingClients(true);
     const colRef = collection(db, "clientes");           // o la colección que uses
