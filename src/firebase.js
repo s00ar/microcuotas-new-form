@@ -30,14 +30,6 @@ import { ref, uploadBytes, getDownloadURL, getStorage } from "firebase/storage";
 // Config & init
 // ———————————————————————————————————————————
 const firebaseConfig = {
-  apiKey: "AIzaSyABW1gZYGY8u9OdqStvscD55w9ReZc2PnY",
-  authDomain: "formulario-reactjs-f7217.firebaseapp.com",
-  databaseURL: "https://formulario-reactjs-f7217-default-rtdb.firebaseio.com",
-  projectId: "formulario-reactjs-f7217",
-  storageBucket: "formulario-reactjs-f7217.appspot.com",
-  messagingSenderId: "382828826062",
-  appId: "1:382828826062:web:057a9e1ad89d9a0e94ef9f",
-  measurementId: "G-8VMVW5NTZB",
 };
 
 const app = initializeApp(firebaseConfig);
