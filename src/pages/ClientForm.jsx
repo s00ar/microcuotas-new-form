@@ -252,6 +252,8 @@ function ClientForm() {
           </p>
         </div>
       </form>
+      <p className="version-text">v3.7.5</p>
+    
     </div>
   );
 }

@@ -1,17 +1,30 @@
-import React, { useEffect } from "react";
-import { act } from "react";
-import { render, screen } from "@testing-library/react";
-import { GlobalLoadingProvider, useGlobalLoading } from "../GlobalLoadingProvider";
+import React, { useState } from "react";
+import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import {
+  GlobalLoadingProvider,
+  useGlobalLoading,
+  useGlobalLoadingEffect,
+} from "../GlobalLoadingProvider";
 
-const TriggerLoading = () => {
+const Buttons = () => {
   const { startLoading, stopLoading } = useGlobalLoading();
+  return (
+    <div>
+      <button onClick={startLoading}>cargar</button>
+      <button onClick={stopLoading}>detener</button>
+    </div>
+  );
+};
 
-  useEffect(() => {
-    startLoading();
-    return () => stopLoading();
-  }, [startLoading, stopLoading]);
-
-  return null;
+const EffectHarness = () => {
+  const [active, setActive] = useState(false);
+  useGlobalLoadingEffect(active);
+  return (
+    <button onClick={() => setActive((value) => !value)}>
+      toggle:{active ? "on" : "off"}
+    </button>
+  );
 };
 
 describe("GlobalLoadingProvider", () => {
@@ -20,48 +33,48 @@ describe("GlobalLoadingProvider", () => {
   });
 
   afterEach(() => {
-    act(() => {
-      jest.runOnlyPendingTimers();
-    });
     jest.useRealTimers();
   });
 
-  it("delays showing the global spinner until the threshold is exceeded", () => {
+  it("shows the overlay only after the delay and hides it when stopLoading runs", async () => {
     render(
       <GlobalLoadingProvider>
-        <TriggerLoading />
+        <Buttons />
       </GlobalLoadingProvider>
     );
 
-    expect(screen.queryByRole("status")).toBeNull();
-
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    await user.click(screen.getByText("cargar"));
     act(() => {
-      jest.advanceTimersByTime(399);
+      jest.advanceTimersByTime(350);
     });
     expect(screen.queryByRole("status")).toBeNull();
 
     act(() => {
-      jest.advanceTimersByTime(2);
+      jest.advanceTimersByTime(100);
     });
     expect(screen.getByRole("status")).toBeInTheDocument();
+
+    await user.click(screen.getByText("detener"));
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
-  it("hides the spinner once all tracked loads finish", () => {
-    const { unmount } = render(
+  it("starts and stops the spinner when the effect flag changes", async () => {
+    render(
       <GlobalLoadingProvider>
-        <TriggerLoading />
+        <EffectHarness />
       </GlobalLoadingProvider>
     );
 
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    await user.click(screen.getByRole("button", { name: /toggle:off/i }));
+
     act(() => {
-      jest.advanceTimersByTime(500);
+      jest.advanceTimersByTime(450);
     });
     expect(screen.getByRole("status")).toBeInTheDocument();
 
-    act(() => {
-      unmount();
-    });
-
+    await user.click(screen.getByRole("button", { name: /toggle:on/i }));
     expect(screen.queryByRole("status")).toBeNull();
   });
 });

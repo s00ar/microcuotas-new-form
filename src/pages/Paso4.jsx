@@ -200,6 +200,7 @@ function Paso4() {
   const [reloadToken, setReloadToken] = useState(0);
   const [manualName, setManualName] = useState("");
   const [bcraData, setBcraData] = useState(null);
+  const [bcraHistoricalData, setBcraHistoricalData] = useState(null);
   const rejectionLockRef = useRef(0);
   useGlobalLoadingEffect(isLoading);
 
@@ -224,9 +225,50 @@ function Paso4() {
       return;
     }
     let isMounted = true;
+
+    const requestBcraPayload = async (url) => {
+      const response = await fetch(url, {
+        headers: {
+          Accept: "application/json",
+          "Cache-Control": "no-cache",
+        },
+        cache: "no-store",
+      });
+      const bodyText = await response.text();
+      let payload = null;
+      try {
+        payload = bodyText ? JSON.parse(bodyText) : null;
+      } catch (jsonErr) {
+        payload = bodyText;
+      }
+      if (!response.ok) {
+        const err = new Error(`BCRA status ${response.status}`);
+        err.status = response.status;
+        err.payload = payload;
+        throw err;
+      }
+      const apiStatus =
+        typeof payload === "object" && payload !== null && "status" in payload
+          ? Number(payload.status)
+          : null;
+      if (apiStatus && apiStatus !== 200) {
+        const err = new Error(`BCRA status ${apiStatus}`);
+        err.status = apiStatus;
+        err.payload = payload;
+        throw err;
+      }
+      return typeof payload === "object" && payload !== null && "results" in payload
+        ? payload.results
+        : payload;
+    };
+
     const fetchData = async () => {
       setIsLoading(true);
       setError("");
+      setBcraData(null);
+      setBcraHistoricalData(null);
+      setPersonName("");
+
       try {
         const mockScenario = MOCK_BCRA_RESPONSES[cuil];
         if (mockScenario !== undefined) {
@@ -243,68 +285,46 @@ function Paso4() {
             typeof mockScenario === "object" && mockScenario !== null && "results" in mockScenario
               ? mockScenario.results
               : mockScenario;
+          const normalizedHistory =
+            typeof mockScenario === "object" && mockScenario !== null && "historicalResults" in mockScenario
+              ? mockScenario.historicalResults
+              : normalizedResults;
           const name = extractName(normalizedResults);
           const normalized = String(name || "").trim();
           if (!normalized) {
             const err = new Error("Respuesta sin nombre");
-            err.mockMessage = "La respuesta simulada no trae denominación.";
+            err.mockMessage = "La respuesta simulada no trae denominacion.";
             throw err;
           }
           if (isMounted) {
             setBcraData(normalizedResults);
+            setBcraHistoricalData(normalizedHistory);
             setPersonName(normalized.toUpperCase());
           }
           return;
         }
 
-        const endpoint = `https://api.bcra.gob.ar/CentralDeDeudores/v1.0/Deudas/${cuil}`;
-        const response = await fetch(endpoint, {
-          headers: {
-            Accept: "application/json",
-            "Cache-Control": "no-cache",
-          },
-          cache: "no-store",
-        });
-        const bodyText = await response.text();
-        let payload = null;
-        try {
-          payload = bodyText ? JSON.parse(bodyText) : null;
-        } catch (jsonErr) {
-          payload = bodyText;
-        }
-        if (!response.ok) {
-          const err = new Error(`BCRA status ${response.status}`);
-          err.status = response.status;
-          err.payload = payload;
-          throw err;
-        }
-        const apiStatus =
-          typeof payload === "object" && payload !== null && "status" in payload
-            ? Number(payload.status)
-            : null;
-        if (apiStatus && apiStatus !== 200) {
-          const err = new Error(`BCRA status ${apiStatus}`);
-          err.status = apiStatus;
-          err.payload = payload;
-          throw err;
-        }
-        const normalizedResults =
-          typeof payload === "object" && payload !== null && "results" in payload
-            ? payload.results
-            : payload;
+        const endpointActual = `https://api.bcra.gob.ar/CentralDeDeudores/v1.0/Deudas/${cuil}`;
+        const endpointHistorico = `https://api.bcra.gob.ar/CentralDeDeudores/v1.0/Deudas/Historicas/${cuil}`;
+        const [normalizedResults, historicalResults] = await Promise.all([
+          requestBcraPayload(endpointActual),
+          requestBcraPayload(endpointHistorico),
+        ]);
         const name = extractName(normalizedResults);
-        const normalized = String(name || "").trim();
-        if (!normalized) {
+        const normalizedName = String(name || "").trim();
+        if (!normalizedName) {
           throw new Error("Respuesta sin nombre");
         }
         if (isMounted) {
           setBcraData(normalizedResults);
-          setPersonName(normalized.toUpperCase());
+          setBcraHistoricalData(historicalResults);
+          setPersonName(normalizedName.toUpperCase());
         }
       } catch (err) {
         console.error("Paso4 BCRA fetch error", err);
         if (isMounted) {
           setBcraData(null);
+          setBcraHistoricalData(null);
           setPersonName("");
           const statusInfo = err?.status ? ` (estado ${err.status})` : "";
           if (err?.mockMessage) {
@@ -327,6 +347,7 @@ function Paso4() {
         }
       }
     };
+
     fetchData();
     return () => {
       isMounted = false;
@@ -340,18 +361,17 @@ function Paso4() {
   };
 
   const rejectionMessages = {
-  tooManyActive:
-    "Lamentablemente no podemos continuar porque segun el BCRA registras muchos productos activos. Intentalo nuevamente cuando hayas reducido la cantidad de productos.",
-  activeMora:
-    "Lamentablemente no podemos continuar porque segun el BCRA registras mora activa con alguna entidad. Regulariza la situacion y volve a intentarlo.",
-  historicalMora:
-    "Lamentablemente no podemos continuar porque segun el BCRA se registran atrasos recientes. Volve a intentarlo cuando tu historial lo permita.",
-  missingData:
-    "No pudimos validar la informacion del BCRA. Reintenta la consulta o verifica el CUIL/CUIT.",
-  noProducts:
-    "Listo! No encontramos productos a tu nombre. Un asesor se comunicara con vos para continuar. Tambien podes escribirnos o llamarnos al 1142681704.",
-};
-
+    tooManyActive:
+      "Lamentablemente no podemos continuar porque segun el BCRA registras muchos productos activos. Intentalo nuevamente cuando hayas reducido la cantidad de productos.",
+    activeMora:
+      "Lamentablemente no podemos continuar porque segun el BCRA registras mora activa con alguna entidad. Regulariza la situacion y volve a intentarlo.",
+    historicalMora:
+      "Lamentablemente no podemos continuar porque segun el BCRA se registran atrasos recientes. Volve a intentarlo cuando tu historial lo permita.",
+    missingData:
+      "No pudimos validar la informacion del BCRA. Reintenta la consulta o verifica el CUIL/CUIT.",
+    noProducts:
+      "No pudimos continuar porque el BCRA no reporta productos historicos a tu nombre. Verifica el CUIL/CUIT o comunicate con nosotros para seguir la gestion.",
+  };
 
   const persistRejection = async (motivo, motivoCodigo, origen = "paso4", extra = {}) => {
     if (!motivo || !cuil) {
@@ -379,6 +399,7 @@ function Paso4() {
         nombre: finalName || null,
         nombreCompleto: finalName || null,
         bcra: bcraData || null,
+        bcraHistorico: bcraHistoricalData || null,
         origen,
         resultadoEvaluacionCodigo: extraResultadoCodigo ?? resultadoMapeado?.codigo ?? null,
         resultadoEvaluacionDescripcion:
@@ -432,8 +453,11 @@ const normalizeSituacionValue = (value) => {
   return 0;
 };
 
+const normalizeEntities = (period) =>
+  Array.isArray(period?.entidades) ? period.entidades.filter(Boolean) : [];
+
 const evaluateBcraEligibility = () => {
-  if (!bcraData) {
+  if (!bcraData || !bcraHistoricalData) {
     return { ok: false, message: rejectionMessages.missingData, reason: "bcra_sin_datos" };
   }
 
@@ -444,12 +468,8 @@ const evaluateBcraEligibility = () => {
   }
 
   periodos.sort((a, b) => normalizePeriodValue(b?.periodo) - normalizePeriodValue(a?.periodo));
-  const normalizeEntities = (period) =>
-      Array.isArray(period?.entidades) ? period.entidades.filter(Boolean) : [];
-
-  const [activePeriod, ...restPeriods] = periodos;
+  const [activePeriod] = periodos;
   const activeEntities = normalizeEntities(activePeriod);
-  const historicalEntities = restPeriods.flatMap((period) => normalizeEntities(period));
 
   if (activeEntities.length >= 5) {
     return { ok: false, message: rejectionMessages.tooManyActive, reason: "bcra_demasiados_activos" };
@@ -463,34 +483,25 @@ const evaluateBcraEligibility = () => {
     if (hasActiveMorosos) {
       return { ok: false, message: rejectionMessages.activeMora, reason: "bcra_mora_activa" };
     }
-  } else {
-      if (!historicalEntities.length) {
-      return { ok: false, message: rejectionMessages.noProducts, reason: "bcra_sin_productos" };
-    }
-    const allHistoricalSituacionUno = historicalEntities.every((entity) => {
-      const situacion = normalizeSituacionValue(entity?.situacion);
-      return situacion <= 1;
-    });
-    if (!allHistoricalSituacionUno) {
-      return { ok: false, message: rejectionMessages.historicalMora, reason: "bcra_mora_historica" };
-    }
-      return { ok: true };
-    }
-
-    if (!historicalEntities.length) {
-      return { ok: true };
   }
 
-  const hasHistoricalAboveTwo = historicalEntities.some((entity) => {
+  const historicalPeriods = Array.isArray(bcraHistoricalData?.periodos) ? bcraHistoricalData.periodos : [];
+  const historicalEntities = historicalPeriods.flatMap((period) => normalizeEntities(period));
+  if (!historicalEntities.length) {
+    console.warn("Paso4.evaluateBcraEligibility sin historicos en BCRA", bcraHistoricalData);
+    return { ok: false, message: rejectionMessages.noProducts, reason: "bcra_sin_productos" };
+  }
+
+  const hasHistoricalMorosos = historicalEntities.some((entity) => {
     const situacion = normalizeSituacionValue(entity?.situacion);
-    return situacion > 2;
+    return situacion > 1;
   });
-  if (hasHistoricalAboveTwo) {
+  if (hasHistoricalMorosos) {
     return { ok: false, message: rejectionMessages.historicalMora, reason: "bcra_mora_historica" };
   }
 
-    return { ok: true };
-  };
+  return { ok: true };
+};
 
 
   const handleConfirm = async () => {
@@ -502,7 +513,7 @@ const evaluateBcraEligibility = () => {
     }
 
     navigate("/paso5", {
-      state: { cuil, cuotas, monto, birthdate, nombre: finalName, bcraData },
+      state: { cuil, cuotas, monto, birthdate, nombre: finalName, bcraData, bcraHistorico: bcraHistoricalData },
     });
   };
 

@@ -7,11 +7,11 @@ export const RESULTADOS_EVALUACION = Object.freeze({
   MORA_ACTIVA: { codigo: 3, descripcion: "Rechazo por situación 2 de los activos." },
   HISTORIAL_SUPERIOR_DOS: {
     codigo: 4,
-    descripcion: "Productos históricos supera situación 2 o no tiene prod. hist.",
+    descripcion: "Productos historicos igualan o superan situacion 2, o no tiene prod. hist.",
   },
   APROBADO: {
     codigo: 5,
-    descripcion: "Aprobado: ninguno de los prod. hist. supera la situación 2 o todos en situación 1.",
+    descripcion: "Aprobado: ninguno de los prod. hist. alcanza la situacion 2 (todos en situacion 1).",
   },
 });
 
@@ -34,6 +34,17 @@ const clientesCollection = collection(db, "clientes");
 
 const STRICT_UNIQUE_FIELDS = ["telefono", "email"];
 const FIELDS_TO_NORMALIZE = ["cuil", "telefono", "email"];
+
+const isPermissionDeniedError = (error) => {
+  if (!error) {
+    return false;
+  }
+  if (error.code === "permission-denied") {
+    return true;
+  }
+  const message = typeof error.message === "string" ? error.message : "";
+  return message.toLowerCase().includes("missing or insufficient permissions");
+};
 
 export const normalizeFieldValue = (field, value) => {
   if (value === undefined || value === null) {
@@ -86,7 +97,18 @@ export const isFieldUnique = async (field, value, options = {}) => {
   }
 
   const q = query(clientesCollection, where(field, "==", normalizedValue));
-  const snapshot = await getDocs(q);
+  let snapshot;
+  try {
+    snapshot = await getDocs(q);
+  } catch (error) {
+    if (isPermissionDeniedError(error)) {
+      console.warn(
+        "isFieldUnique: omito la validaci\u00f3n porque Firestore deneg\u00f3 los permisos de lectura."
+      );
+      return true;
+    }
+    throw error;
+  }
   if (snapshot.empty) {
     return true;
   }
@@ -127,7 +149,18 @@ export const getCuilRecency = async (cuilValue, windowDays = 30) => {
   }
 
   const q = query(clientesCollection, where("cuil", "==", normalized));
-  const snapshot = await getDocs(q);
+  let snapshot;
+  try {
+    snapshot = await getDocs(q);
+  } catch (error) {
+    if (isPermissionDeniedError(error)) {
+      console.warn(
+        "getCuilRecency: no se pudo consultar Firestore por permisos insuficientes; permito continuar."
+      );
+      return { canRegister: true, lastDate: null };
+    }
+    throw error;
+  }
   if (snapshot.empty) {
     return { canRegister: true, lastDate: null };
   }

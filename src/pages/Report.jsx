@@ -7,6 +7,8 @@ import "../css/Report.css";
 import Logo from "../assets/logo_textoblanco_fondotransp.png";
 import { useGlobalLoadingEffect } from "../components/GlobalLoadingProvider";
 
+import Banner from "../components/Header-Loged";
+
 const iconStyle = {
   cursor: "pointer",
 };
@@ -584,22 +586,13 @@ export default function Admin() {
   }, [columnOptions, columnFilters, fullClientesData, motivoFiltro, estadoFiltro, sortMethod, busquedaGeneral]);
 
   return (
+    <div>
+      <Banner />
     <div className="admin-background">
       <nav className="nav__container">
         <div className="innderNav">
           <div className="admin__title__card">
-            <img className="admin__logo" src={Logo} />
-            <h2 className="admin__title">Herramienta de Reportes</h2>
-          </div>
-          <div className="admin__button__container">
-            <button className="btn__admin">
-              <Link className="btn__admin__text" to="/login">
-                Volver a login
-              </Link>
-            </button>
-            <button className="btn__admin" onClick={logout}>
-              Cerrar sesión
-            </button>
+            <h2 className="admin__title">Nueva herramienta de Reportes</h2>
           </div>
         </div>
       </nav>
@@ -870,6 +863,8 @@ export default function Admin() {
         </button>
       </div>
     </div>
+  </div>
+
   );
 }
 

@@ -71,7 +71,7 @@ function Paso1() {
           Solicitar crédito
         </button>
       </div>
-      <p className="version-text">v3.7.2</p>
+      <p className="version-text">v3.7.5</p>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 .header {
-    background-image: linear-gradient(to bottom, black, rgb(59, 8, 130));
+    background-image: linear-gradient(to bottom, rgb(59, 8, 130), rgb(179, 209, 255),rgb(59, 8, 130));
     display: flex;
     align-items: center;
     justify-content: center;

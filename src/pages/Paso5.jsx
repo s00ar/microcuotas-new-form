@@ -75,7 +75,7 @@ const isValidEmail = (value) =>
 function Paso5() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { cuil, cuotas, monto, birthdate, nombre: fullName, bcraData } = location.state || {};
+  const { cuil, cuotas, monto, birthdate, nombre: fullName, bcraData, bcraHistorico } = location.state || {};
   const [telefono, setTelefono] = useState("");
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -150,6 +150,7 @@ function Paso5() {
         email: emailNormalizado,
         fechaNacimiento: birthdate || null,
         bcra: bcraData || null,
+        bcraHistorico: bcraHistorico || null,
         origen: "paso5",
       });
 

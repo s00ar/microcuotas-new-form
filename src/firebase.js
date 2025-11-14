@@ -8,25 +8,64 @@ import {
     signOut,
 } from "firebase/auth";
 import {
-    query,
-    getDocs,
-    where,
-    getFirestore,
-    collection,
-    addDoc,
-    deleteDoc,
-    orderBy
+  query,
+  getDocs,
+  where,
+  getFirestore,
+  collection,
+  addDoc,
+  deleteDoc,
+  orderBy,
+  doc,
+  getDoc,
+  setDoc
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, getStorage } from "firebase/storage";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyAb00iozgNSQhwWlV0dbOtDCnmqyvtmoa0",
-  authDomain: "microcuotas-e86ba.firebaseapp.com",
-  projectId: "microcuotas-e86ba",
-  storageBucket: "microcuotas-e86ba.appspot.com",
-  messagingSenderId: "52247316363",
-  appId: "1:52247316363:web:a63f793eae2e3b5db2118e",
+const defaultFirebaseConfig = {
+  apiKey: "AIzaSyA34nXpHgcCSrD6ztqLW9dCtsXTj5wo3ww",
+  authDomain: "microcuotas-dev.firebaseapp.com",
+  projectId: "microcuotas-dev",
+  storageBucket: "microcuotas-dev.firebasestorage.app",
+  messagingSenderId: "591172272146",
+  appId: "1:591172272146:web:c2587b31ecaf0a833618cb",
+  measurementId: "G-CYV2NJKQ7P",
 };
+
+const resolveFirebaseConfig = () => {
+  const overrides = {
+    apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+    authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.REACT_APP_FIREBASE_APP_ID,
+    measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID,
+  };
+
+  const sanitizedOverrides = Object.entries(overrides).reduce((acc, [key, value]) => {
+    if (typeof value === "string" && value.trim().length > 0) {
+      acc[key] = value.trim();
+    }
+    return acc;
+  }, {});
+
+  const mergedConfig = { ...defaultFirebaseConfig, ...sanitizedOverrides };
+
+  const requiredKeys = ["apiKey", "authDomain", "projectId", "appId"];
+  const missingKeys = requiredKeys.filter((key) => !mergedConfig[key]);
+  if (missingKeys.length) {
+    console.warn(
+      `Firebase config missing keys: ${missingKeys.join(
+        ", "
+      )}. Check your .env (REACT_APP_FIREBASE_* variables).`
+    );
+  }
+
+  return mergedConfig;
+};
+
+const firebaseConfig = resolveFirebaseConfig();
 
 const app = initializeApp(firebaseConfig);
 // const db = getDatabase(app);
@@ -107,6 +146,29 @@ const fetchContactsData = async (startDate, endDate) => {
   return data;
 };
 
+const SIMULATION_PARAMS_PATH = ["config", "simulationParams"];
+
+const getSimulationParams = async () => {
+  const docRef = doc(db, ...SIMULATION_PARAMS_PATH);
+  const snap = await getDoc(docRef);
+
+  if (!snap.exists()) {
+    return {
+      minCuotas: 2,
+      maxCuotas: 12,
+      minMonto: 50000,
+      maxMonto: 500000,
+      interesesPorCuota: {}
+    };
+  }
+
+  return snap.data();
+};
+
+const updateSimulationParams = async (params) => {
+  const docRef = doc(db, ...SIMULATION_PARAMS_PATH);
+  await setDoc(docRef, params, { merge: true });
+};
 
 const logout = () => {
 signOut(auth);
@@ -126,7 +188,9 @@ export {
   logout,
   isAdmin,
   isReport,
-  fetchContactsData
+  fetchContactsData,
+  getSimulationParams,
+  updateSimulationParams
 };
 export default firebaseConfig;
 

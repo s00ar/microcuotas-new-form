@@ -12,6 +12,7 @@ import Paso5 from "./pages/Paso5";
 import RechazoNombre from "./pages/Rechazo-nombre";
 import SolicitudExitosa from "./pages/SolicitudExitosa";
 import ClientForm from './pages/ClientForm';
+import Options from "./pages/Options";
 import './css/App.css';
 import firebaseApp from "./firebase";
 import FooterBar from "./components/Footer";
@@ -36,6 +37,7 @@ const App = () => {
               <Route path="/reset" element={<Reset />} />
               <Route path="/register" element={<Register />} />
               <Route path="/report" element={<Report />} />
+              <Route path="/options" element={<Options />} />
               <Route path="/" element={<Paso1 />} />
             </Routes>
           </Router>

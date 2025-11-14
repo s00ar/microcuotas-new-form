@@ -73,7 +73,7 @@ function Login() {
         <Banner />
       </div>
     <div className="admin__title__card">
-        <h2 className="admin__title">Estádisticas de sistema</h2>
+        <h2 className="admin__title">Nuevo sistema de reportes</h2>
     </div>
       <div className="login">
         <div className="login__container">
@@ -112,6 +112,7 @@ function Login() {
           )}
         </div>
       </div>
+      <p className="version-text">v3.7.5</p>
     </div>
   );
 }
