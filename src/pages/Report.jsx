@@ -102,6 +102,7 @@ const COLUMN_FILTER_DEFAULTS = Object.freeze({
   nombre: "todos",
   apellido: "todos",
   telefono: "todos",
+  email: "todos",
   fecha: "todos",
 });
 
@@ -273,6 +274,7 @@ export default function Admin() {
     sortByNombreAscend: (a, b) => String(a.nombre || "").localeCompare(String(b.nombre || "")),
     sortByApellidoAscend: (a, b) => String(a.apellido || "").localeCompare(String(b.apellido || "")),
     sortByTelefonoAscend: (a, b) => String(a.telefono || "").localeCompare(String(b.telefono || "")),
+    sortByEmailAscend: (a, b) => String(a.email || "").localeCompare(String(b.email || "")),
     sortByFechaSolicitudAscend: (a, b) =>
       (a._timestampDate?.getTime() || 0) - (b._timestampDate?.getTime() || 0),
     sortByFechaSolicitudDescend: (a, b) =>
@@ -340,6 +342,10 @@ export default function Admin() {
 
     if (columnFilters.telefono && columnFilters.telefono !== "todos") {
       filtered = filtered.filter((cliente) => String(cliente.telefono || "") === columnFilters.telefono);
+    }
+
+    if (columnFilters.email && columnFilters.email !== "todos") {
+      filtered = filtered.filter((cliente) => String(cliente.email || "") === columnFilters.email);
     }
 
     if (columnFilters.fecha && columnFilters.fecha !== "todos") {
@@ -425,6 +431,8 @@ export default function Admin() {
 
   const sortByTelefonoAscend = () => applySortAndFilters("sortByTelefonoAscend");
 
+  const sortByEmailAscend = () => applySortAndFilters("sortByEmailAscend");
+
   const sortByFechaSolicitudAscend = () => applySortAndFilters("sortByFechaSolicitudAscend");
 
   const sortByFechaSolicitudDescend = () => applySortAndFilters("sortByFechaSolicitudDescend");
@@ -452,6 +460,7 @@ export default function Admin() {
       nombre: new Set(),
       apellido: new Set(),
       telefono: new Set(),
+      email: new Set(),
       fecha: new Set(),
     };
 
@@ -468,6 +477,9 @@ export default function Admin() {
       if (cliente.telefono) {
         sets.telefono.add(String(cliente.telefono));
       }
+      if (cliente.email) {
+        sets.email.add(String(cliente.email));
+      }
       const fecha =
         cliente._timestampLabel ||
         (firebaseTimestampToDate(cliente.timestamp)?.toDateString() || "");
@@ -483,6 +495,7 @@ export default function Admin() {
       nombre: toSortedArray(sets.nombre),
       apellido: toSortedArray(sets.apellido),
       telefono: toSortedArray(sets.telefono),
+      email: toSortedArray(sets.email),
       fecha: toSortedArray(sets.fecha),
     };
   }, [fullClientesData]);
@@ -572,6 +585,10 @@ export default function Admin() {
     }
     if (columnFilters.telefono !== "todos" && !columnOptions.telefono.includes(columnFilters.telefono)) {
       nextFilters.telefono = "todos";
+      changed = true;
+    }
+    if (columnFilters.email !== "todos" && !columnOptions.email.includes(columnFilters.email)) {
+      nextFilters.email = "todos";
       changed = true;
     }
     if (columnFilters.fecha !== "todos" && !columnOptions.fecha.includes(columnFilters.fecha)) {
@@ -733,6 +750,24 @@ export default function Admin() {
                     </select>
                   </div>
                 </th>
+                <th onClick={sortByEmailAscend}>
+                  <div className="table__header-cell">
+                    <span>Email</span>
+                    <select
+                      className="table__header-filter"
+                      value={columnFilters.email}
+                      onChange={handleColumnFilterChange("email")}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <option value="todos">Todos</option>
+                      {columnOptions.email.map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </th>
                 <th onClick={sortByFechaSolicitudDescend}>
                   <div className="table__header-cell">
                     <span>Fecha Solicitud</span>
@@ -802,6 +837,7 @@ export default function Admin() {
                   cliente._timestampLabel ||
                   (firebaseTimestampToDate(cliente.timestamp)?.toDateString() || "-");
                 const telefonoVisible = cliente.telefono || "-";
+                const emailVisible = cliente.email || "-";
                 const estadoVisible =
                   estadoNormalizado === "aceptada"
                     ? "Si"
@@ -814,6 +850,7 @@ export default function Admin() {
                     <td>{cliente.nombre || "-"}</td>
                     <td>{cliente.apellido || "-"}</td>
                     <td>{telefonoVisible}</td>
+                    <td>{emailVisible}</td>
                     <td>{fechaFormateada}</td>
                     <td>{estadoVisible}</td>
                     <td>

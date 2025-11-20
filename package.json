@@ -8,6 +8,7 @@
     "@testing-library/user-event": "^13.5.0",
     "apexcharts": "^5.3.4",
     "firebase": "^9.20.0",
+    "firebase-admin": "^13.6.0",
     "lottie-web": "^5.13.0",
     "react": "^18.2.0",
     "react-apexcharts": "^1.7.0",

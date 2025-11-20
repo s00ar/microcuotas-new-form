@@ -18,6 +18,7 @@ const MIN_MESES_ANTIGUEDAD = 6;
 
 const TELEFONO_EJEMPLO = "1142681704";
 const MOTIVO_TELEFONO_REPETIDO = "El nÃºmero de telÃ©fono ingresado ya fue utilizado en otra solicitud.";
+const MOTIVO_EMAIL_REPETIDO = "El email ingresado ya fue utilizado en otra solicitud.";
 const CONTACTO = "1142681704";
 const TEST_CUIL = "20303948091";
 const MOTIVO_CUIL_RECIENTE = `El CUIL ingresado ya registra una solicitud en los Ãºltimos 30 dÃ­as. Comunicate al ${CONTACTO} para continuar con la gestiÃ³n.`;
@@ -25,6 +26,7 @@ const MOTIVO_CUIL_RECIENTE = `El CUIL ingresado ya registra una solicitud en los
 function ClientForm() {
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
+  const [email, setEmail] = useState("");
   const [telefono, setTelefono] = useState("");
   const [ingresoMensual, setIngresoMensual] = useState("");
   const [fechaIngreso, setFechaIngreso] = useState("");
@@ -60,6 +62,7 @@ function ClientForm() {
   const resetForm = () => {
     setNombre("");
     setApellido("");
+    setEmail("");
     setTelefono("");
     setIngresoMensual("");
     setFechaIngreso("");
@@ -71,6 +74,7 @@ function ClientForm() {
     if (
       !nombre ||
       !apellido ||
+      !email ||
       !cuil ||
       !telefono ||
       !monto ||
@@ -105,13 +109,23 @@ function ClientForm() {
       return;
     }
 
+    const emailNormalizado = String(email || "").trim().toLowerCase();
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(emailNormalizado)) {
+      alert("IngresÃ¡ un email vÃ¡lido.");
+      return;
+    }
+
     setIsSubmitting(true);
     setShowSpinner(true);
 
     try {
       const cuilNormalizado = String(cuil || "").replace(/\D/g, "");
-      const [telefonoDisponible, cuilDisponible] = await Promise.all([
+      const [telefonoDisponible, emailDisponible, cuilDisponible] = await Promise.all([
         isFieldUnique("telefono", telefonoNormalizado, {
+          ignoreEstados: ["rechazada"],
+          sameCuilValue: cuilNormalizado,
+        }),
+        isFieldUnique("email", emailNormalizado, {
           ignoreEstados: ["rechazada"],
           sameCuilValue: cuilNormalizado,
         }),
@@ -120,6 +134,11 @@ function ClientForm() {
 
       if (!telefonoDisponible) {
         alert(MOTIVO_TELEFONO_REPETIDO);
+        return;
+      }
+
+      if (!emailDisponible) {
+        alert(MOTIVO_EMAIL_REPETIDO);
         return;
       }
 
@@ -132,6 +151,7 @@ function ClientForm() {
       await addDoc(clientesCollection, {
         nombre,
         apellido,
+        email: emailNormalizado,
         cuil: cuilNormalizado,
         monto,
         cuotas,
@@ -205,6 +225,15 @@ function ClientForm() {
                 onChange={(event) => setApellido(event.target.value)}
               />
             </label>
+            <label>
+              Email:
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="correo@ejemplo.com"
+              />
+            </label>
           </div>
           <div className="form__container__rightpanel">
             <label>
@@ -252,7 +281,7 @@ function ClientForm() {
           </p>
         </div>
       </form>
-      <p className="version-text">v3.7.5</p>
+      <p className="version-text">v3.7.6</p>
     
     </div>
   );
