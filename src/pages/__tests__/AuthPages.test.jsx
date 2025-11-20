@@ -30,10 +30,11 @@ jest.mock("react-firebase-hooks/auth", () => ({
 jest.mock("../../firebase", () => ({
   auth: { signOut: jest.fn() },
   db: {},
-  logInWithEmailAndPassword: (...args) => mockLogInWithEmailAndPassword(...args),
-  registerWithEmailAndPassword: (...args) => mockRegisterWithEmailAndPassword(...args),
-  sendPasswordResetEmail: (...args) => mockSendPasswordResetEmail(...args),
-  fetchContactsData: (...args) => mockFetchContactsData(...args),
+  logInWithEmailAndPassword: (...args) => Promise.resolve(mockLogInWithEmailAndPassword(...args)),
+  registerWithEmailAndPassword: (...args) =>
+    Promise.resolve(mockRegisterWithEmailAndPassword(...args)),
+  sendPasswordResetEmail: (...args) => Promise.resolve(mockSendPasswordResetEmail(...args)),
+  fetchContactsData: (...args) => Promise.resolve(mockFetchContactsData(...args)),
 }));
 
 jest.mock("firebase/firestore", () => ({
@@ -68,32 +69,33 @@ describe("Auth related pages", () => {
 
     renderWithRouter(<Login />);
 
-    await waitFor(() => expect(screen.getByText(/Total de clientes: 2/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId("mock-dashboard")).toHaveTextContent(/Total clientes:\s*2/)
+    );
   });
 
   it("allows logging in by calling the firebase helper", async () => {
-    const user = userEvent.setup();
     renderWithRouter(<Login />);
 
-    await user.type(screen.getByPlaceholderText(/E-mail/i), "demo@mail.com");
-    await user.type(screen.getByPlaceholderText(/Password/i), "Secret123!");
-    await user.click(screen.getByRole("button", { name: /Ingresar/i }));
+    await userEvent.type(screen.getByPlaceholderText(/E-mail/i), "demo@mail.com");
+    await userEvent.type(screen.getByPlaceholderText(/Password/i), "Secret123!");
+    await userEvent.click(screen.getByRole("button", { name: /Ingresar/i }));
 
     expect(mockLogInWithEmailAndPassword).toHaveBeenCalledWith("demo@mail.com", "Secret123!");
   });
 
   it("sends the reset email with the provided address", async () => {
-    const user = userEvent.setup();
     renderWithRouter(<Reset />);
 
-    await user.type(screen.getByPlaceholderText(/E-mail Address/i), "reset@mail.com");
-    await user.click(screen.getByRole("button", { name: /Send password reset email/i }));
+    await userEvent.type(screen.getByPlaceholderText(/E-mail Address/i), "reset@mail.com");
+    await userEvent.click(
+      screen.getByRole("button", { name: /Send password reset email/i })
+    );
 
     expect(mockSendPasswordResetEmail).toHaveBeenCalledWith("reset@mail.com");
   });
 
   it("creates users only when the password policy is satisfied", async () => {
-    const user = userEvent.setup();
     mockUseAuthState.mockReturnValue([{ uid: "admin" }, false]);
     mockGetDocs.mockResolvedValue({
       forEach: (cb) => cb({ data: () => ({ role: "admin" }) }),
@@ -101,16 +103,16 @@ describe("Auth related pages", () => {
 
     renderWithRouter(<Register />);
 
-    await user.type(screen.getByPlaceholderText(/Nombre completo/i), "Administrador Demo");
-    await user.type(screen.getByPlaceholderText(/Casilla de e-mail/i), "admin@mail.com");
-    await user.selectOptions(screen.getByRole("combobox"), ["admin"]);
-    await user.type(screen.getByPlaceholderText(/Contrase/i), "Clave123!");
+    await userEvent.type(screen.getByPlaceholderText(/Nombre completo/i), "Administrador Demo");
+    await userEvent.type(screen.getByPlaceholderText(/Casilla de e-mail/i), "admin@mail.com");
+    await userEvent.selectOptions(screen.getByRole("combobox"), ["admin"]);
+    await userEvent.type(screen.getByPlaceholderText(/Contrase/i), "Clave123!");
 
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /Crear usuario/i })).not.toBeDisabled()
     );
 
-    await user.click(screen.getByRole("button", { name: /Crear usuario/i }));
+    await userEvent.click(screen.getByRole("button", { name: /Crear usuario/i }));
 
     expect(mockRegisterWithEmailAndPassword).toHaveBeenCalledWith(
       "Administrador Demo",

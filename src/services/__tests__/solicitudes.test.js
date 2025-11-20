@@ -1,21 +1,3 @@
-const mockAddDoc = jest.fn();
-const mockGetDocs = jest.fn();
-const mockCollection = jest.fn((dbArg, name) => ({ dbArg, name }));
-const mockQuery = jest.fn((...parts) => ({ type: "query", parts }));
-const mockWhere = jest.fn((field, op, value) => ({ field, op, value }));
-const mockServerTimestamp = jest.fn(() => "server-timestamp");
-
-jest.mock("firebase/firestore", () => ({
-  addDoc: (...args) => mockAddDoc(...args),
-  collection: (...args) => mockCollection(...args),
-  getDocs: (...args) => mockGetDocs(...args),
-  query: (...args) => mockQuery(...args),
-  where: (...args) => mockWhere(...args),
-  serverTimestamp: (...args) => mockServerTimestamp(...args),
-}));
-
-jest.mock("../../firebase", () => ({ db: { projectId: "demo-project" } }));
-
 import saveSolicitud, {
   RESULTADOS_EVALUACION,
   getCuilRecency,
@@ -27,6 +9,25 @@ import saveSolicitud, {
   saveRechazo,
 } from "../solicitudes";
 import * as solicitudesModule from "../solicitudes";
+import {
+  addDoc,
+  collection,
+  getDocs,
+  query,
+  where,
+  serverTimestamp,
+} from "firebase/firestore";
+
+jest.mock("firebase/firestore", () => ({
+  addDoc: jest.fn(),
+  collection: jest.fn((dbArg, name) => ({ dbArg, name })),
+  getDocs: jest.fn(),
+  query: jest.fn((...parts) => ({ type: "query", parts })),
+  where: jest.fn((field, op, value) => ({ field, op, value })),
+  serverTimestamp: jest.fn(() => "server-timestamp"),
+}));
+
+jest.mock("../../firebase", () => ({ db: { projectId: "demo-project" } }));
 
 const buildSnapshot = (docs) => {
   const docSnaps = docs.map((data) => ({
@@ -42,6 +43,9 @@ const buildSnapshot = (docs) => {
 describe("solicitudes service helpers", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    getDocs.mockResolvedValue(buildSnapshot([]));
+    addDoc.mockResolvedValue({ id: "mock-doc" });
+    serverTimestamp.mockReturnValue("server-timestamp");
   });
 
   it("maps known rejection reasons", () => {
@@ -58,13 +62,13 @@ describe("solicitudes service helpers", () => {
   });
 
   it("confirms uniqueness when Firestore returns no documents", async () => {
-    mockGetDocs.mockResolvedValueOnce(buildSnapshot([]));
+    getDocs.mockResolvedValueOnce(buildSnapshot([]));
     await expect(isFieldUnique("telefono", "1140000000")).resolves.toBe(true);
-    expect(mockWhere).toHaveBeenCalledWith("telefono", "==", "1140000000");
+    expect(where).toHaveBeenCalledWith("telefono", "==", "1140000000");
   });
 
   it("ignores rejected states and same CUIL when testing uniqueness", async () => {
-    mockGetDocs.mockResolvedValueOnce(
+    getDocs.mockResolvedValueOnce(
       buildSnapshot([
         { estado: "rechazada", telefono: "1140000000" },
         { estado: "pendiente", telefono: "1140000000", cuil: "20123456789" },
@@ -81,7 +85,7 @@ describe("solicitudes service helpers", () => {
   });
 
   it("treats permission errors in uniqueness checks as non-blocking", async () => {
-    mockGetDocs.mockRejectedValueOnce({ code: "permission-denied" });
+    getDocs.mockRejectedValueOnce({ code: "permission-denied" });
     await expect(isFieldUnique("email", "demo@mail.com")).resolves.toBe(true);
   });
 
@@ -89,7 +93,7 @@ describe("solicitudes service helpers", () => {
     const today = Date.now();
     const oldDate = new Date(today - 40 * 24 * 60 * 60 * 1000);
     const recentDate = new Date(today - 5 * 24 * 60 * 60 * 1000);
-    mockGetDocs.mockResolvedValueOnce(
+    getDocs.mockResolvedValueOnce(
       buildSnapshot([
         { timestamp: { toDate: () => oldDate } },
         { timestamp: recentDate },
@@ -103,7 +107,7 @@ describe("solicitudes service helpers", () => {
 
   it("allows registration when no documents or old timestamps exist", async () => {
     const older = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000);
-    mockGetDocs.mockResolvedValueOnce(buildSnapshot([{ fechaSolicitud: older.toISOString() }]));
+    getDocs.mockResolvedValueOnce(buildSnapshot([{ fechaSolicitud: older.toISOString() }]));
 
     const result = await getCuilRecency("20123456789", 30);
     expect(result.canRegister).toBe(true);
@@ -111,7 +115,7 @@ describe("solicitudes service helpers", () => {
   });
 
   it("treats permission-denied recency queries as registrable", async () => {
-    mockGetDocs.mockRejectedValueOnce({ code: "permission-denied" });
+    getDocs.mockRejectedValueOnce({ code: "permission-denied" });
     await expect(getCuilRecency("20123456789")).resolves.toEqual({
       canRegister: true,
       lastDate: null,
@@ -119,30 +123,28 @@ describe("solicitudes service helpers", () => {
   });
 
   it("delegates isCuilRegistrable to getCuilRecency", async () => {
-    const spy = jest.spyOn(solicitudesModule, "getCuilRecency").mockResolvedValueOnce({
-      canRegister: false,
-      lastDate: new Date(),
-    });
-    await expect(isCuilRegistrable("20123456789")).resolves.toBe(false);
-    spy.mockRestore();
+    const recent = new Date();
+    getDocs.mockResolvedValueOnce(buildSnapshot([{ timestamp: recent }]));
+    const registrable = await isCuilRegistrable("20123456789", 30);
+    expect(registrable).toBe(false);
   });
 
   it("saves rechazos with mapped evaluation data", async () => {
-    mockAddDoc.mockResolvedValueOnce({ id: "rechazo-1" });
+    addDoc.mockResolvedValueOnce({ id: "rechazo-1" });
     await saveRechazo({
       motivoRechazo: null,
       motivoRechazoCodigo: "bcra_mora_activa",
       cuil: "20-12345678-9",
     });
-    expect(mockAddDoc).toHaveBeenCalled();
-    const payload = mockAddDoc.mock.calls[0][1];
+    expect(addDoc).toHaveBeenCalled();
+    const payload = addDoc.mock.calls[0][1];
     expect(payload.estado).toBe("rechazada");
     expect(payload.resultadoEvaluacionCodigo).toBe(RESULTADOS_EVALUACION.MORA_ACTIVA.codigo);
     expect(payload.timestamp).toBe("server-timestamp");
   });
 
   it("saves solicitudes aceptadas normalizando campos", async () => {
-    mockAddDoc.mockResolvedValueOnce({ id: "aceptada-1" });
+    addDoc.mockResolvedValueOnce({ id: "aceptada-1" });
     const uniqueSpy = jest.spyOn(solicitudesModule, "isFieldUnique").mockResolvedValue(true);
     await saveAceptada({
       nombre: "Demo",
@@ -153,7 +155,7 @@ describe("solicitudes service helpers", () => {
       monto: 50000,
       cuotas: 12,
     });
-    const payload = mockAddDoc.mock.calls[0][1];
+    const payload = addDoc.mock.calls[0][1];
     expect(payload.telefono).toBe("01140001234");
     expect(payload.email).toBe("demo@mail.com");
     expect(payload.estado).toBe("aceptada");
@@ -161,10 +163,9 @@ describe("solicitudes service helpers", () => {
   });
 
   it("throws duplicate_fields when uniqueness checks fail", async () => {
-    const uniqueSpy = jest
-      .spyOn(solicitudesModule, "isFieldUnique")
-      .mockResolvedValueOnce(false)
-      .mockResolvedValue(true);
+    getDocs.mockResolvedValueOnce(
+      buildSnapshot([{ telefono: "1140000000", estado: "pendiente", cuil: "20123456789" }])
+    );
 
     await expect(
       saveSolicitud({
@@ -172,7 +173,6 @@ describe("solicitudes service helpers", () => {
         email: "demo@mail.com",
       })
     ).rejects.toMatchObject({ code: "duplicate_fields", fields: ["telefono"] });
-    expect(mockAddDoc).not.toHaveBeenCalled();
-    uniqueSpy.mockRestore();
+    expect(addDoc).not.toHaveBeenCalled();
   });
 });

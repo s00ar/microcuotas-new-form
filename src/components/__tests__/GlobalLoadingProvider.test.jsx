@@ -43,8 +43,7 @@ describe("GlobalLoadingProvider", () => {
       </GlobalLoadingProvider>
     );
 
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
-    await user.click(screen.getByText("cargar"));
+    await userEvent.click(screen.getByText("cargar"));
     act(() => {
       jest.advanceTimersByTime(350);
     });
@@ -55,7 +54,7 @@ describe("GlobalLoadingProvider", () => {
     });
     expect(screen.getByRole("status")).toBeInTheDocument();
 
-    await user.click(screen.getByText("detener"));
+    await userEvent.click(screen.getByText("detener"));
     expect(screen.queryByRole("status")).toBeNull();
   });
 
@@ -66,15 +65,14 @@ describe("GlobalLoadingProvider", () => {
       </GlobalLoadingProvider>
     );
 
-    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
-    await user.click(screen.getByRole("button", { name: /toggle:off/i }));
+    await userEvent.click(screen.getByRole("button", { name: /toggle:off/i }));
 
     act(() => {
       jest.advanceTimersByTime(450);
     });
     expect(screen.getByRole("status")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /toggle:on/i }));
+    await userEvent.click(screen.getByRole("button", { name: /toggle:on/i }));
     expect(screen.queryByRole("status")).toBeNull();
   });
 });
