@@ -1,13 +1,13 @@
-﻿import "../css/Pasos.css";
+import "../css/Pasos.css";
 import { useNavigate, useLocation } from "react-router-dom";
 import React, { useRef, useState } from "react";
 import Banner from "../components/Header";
 import LottieAnim from "../components/LottieAnim";
 import { saveRechazo, RESULTADOS_EVALUACION } from "../services/solicitudes";
 
-const CONTACTO = "1142681704";
-const MINIMUM_AGE_MONTHS = 18 * 12 + 6; // 18 años y 6 meses
-const MINOR_ERROR_MESSAGE = `Debes ser mayor de 18 a\u00f1os y 6 meses para continuar. Comunicate al ${CONTACTO} si necesitas asistencia.`;
+const CONTACTO = "11 4268 1704";
+const MINIMUM_AGE_MONTHS = 30 * 12; // 30 años
+const MINOR_ERROR_MESSAGE = `Debes ser mayor de 30 años para continuar. Comunicate al telefono de linea ${CONTACTO} si necesitas asistencia.`;
 
 function Paso2() {
   const navigate = useNavigate();
@@ -81,14 +81,16 @@ function Paso2() {
             </div>
           </div>
           <div className="verification__container__panel_right">
-            <label htmlFor="birthdate">Fecha de nacimiento:</label>
+            <div className="spacer">
+            <h2 htmlFor="birthdate">Fecha de nacimiento:</h2>
             <input
               className="verification__input"
               id="birthdate"
               type="date"
               value={birthdate}
               onChange={handleBirthdateChange}
-            />
+              />
+            </div>
             {error && (
               <div className="error-message_container">
                 <div className="error-message_header">Error</div>
@@ -98,6 +100,7 @@ function Paso2() {
           </div>
         </div>
       </div>
+        <div className="btn__spacer" />
       <div className="btn__container">
         <button className="verification__btn" onClick={handleNext}>
           Continuar

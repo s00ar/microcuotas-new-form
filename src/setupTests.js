@@ -5,6 +5,9 @@
 import "@testing-library/jest-dom";
 import React from "react";
 
+const originalConsoleError = console.error;
+let consoleErrorSpy;
+
 const mockLoadAnimation = jest.fn(() => ({
   destroy: jest.fn(),
 }));
@@ -18,7 +21,18 @@ jest.mock("lottie-web", () => ({
 }));
 
 beforeAll(() => {
+  consoleErrorSpy = jest.spyOn(console, "error").mockImplementation((...args) => {
+    const [first] = args || [];
+    if (typeof first === "string" && first.includes("ReactDOMTestUtils.act")) {
+      return;
+    }
+    originalConsoleError(...args);
+  });
   jest.spyOn(window, "alert").mockImplementation(() => {});
+});
+
+afterAll(() => {
+  consoleErrorSpy?.mockRestore();
 });
 
 afterEach(() => {

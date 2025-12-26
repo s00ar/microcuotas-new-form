@@ -87,6 +87,7 @@ function Paso3() {
               <LottieAnim width={600} height={600} />
             </div>
           </div>
+<div className="spacer__cuil">
 
           <div className="verification__container__panel_right">
             <h2>Por favor ingresa tu CUIL/CUIT</h2>
@@ -96,7 +97,8 @@ function Paso3() {
               placeholder="Ingresa tu CUIL"
               value={cuil}
               onChange={(event) => setCuil(event.target.value.trim())}
-            />
+              />
+              </div>
 
             {error && (
               <div className="error-message_container">

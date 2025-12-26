@@ -1,4 +1,5 @@
 import React from "react";
+import "../css/Footer.css";
 
 const FooterBar = () => (
   <footer className="app-footer">

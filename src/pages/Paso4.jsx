@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import Banner from "../components/Header";
 import LottieAnim from "../components/LottieAnim";
 import { FaCheckSquare } from "react-icons/fa";
-import { saveRechazo, mapReasonToResultado } from "../services/solicitudes";
+import { saveRechazo, mapReasonToResultado, validateTarjetaContact } from "../services/solicitudes";
 import { useGlobalLoadingEffect } from "../components/GlobalLoadingProvider";
 
 const formatDate = (value) => {
@@ -83,6 +83,106 @@ const buildPeriod = (periodo, entidades) => ({
     situacion,
   })),
 });
+
+const rejectionMessages = {
+  tooManyActive:
+    "Lamentablemente no podemos continuar porque segun el BCRA registra muchos productos activos. Si podemos ofrecerle un prestamo personal a traves de su tarjeta de crédito, en caso que usted tenga disponible o cupo en su tarjeta. Ingrese a continuacion, si le interesa, su numero de celular junto con su correo electronico y un representante de MicroCuotas se pondra en contacto con usted.",
+  activeMora:
+    "Lamentablemente no podemos continuar porque segun el BCRA registra mora activa con alguna entidad. Si podemos ofrecerle un prestamo personal a traves de su tarjeta de crédito, en caso que usted tenga disponible o cupo en su tarjeta. Ingrese a continuacion, si le interesa, su numero de celular junto con su correo electronico y un representante de MicroCuotas se pondra en contacto con usted.",
+  historicalMora:
+    "Lamentablemente no podemos continuar porque segun el BCRA se registran atrasos recientes. Si podemos ofrecerle un prestamo personal a traves de su tarjeta de crédito, en caso que usted tenga disponible o cupo en su tarjeta. Ingrese a continuacion, si le interesa, su numero de celular junto con su correo electronico y un representante de MicroCuotas se pondra en contacto con usted.",
+  missingData:
+    "No pudimos validar la informacion del BCRA. Reintente la consulta o verifique el CUIL/CUIT. Ante cualquier duda llame al teléfono de linea 11 4268 1704 de L a V de 9.30 a 17.30 hs y Sabados de 9.30 a 13 hs.",
+  noProducts:
+    "No pudimos continuar porque el BCRA no reporta productos historicos a tu nombre. Verifica el CUIL/CUIT o comunicate con nosotros para seguir la gestion.",
+};
+
+const rejectionContactReasons = new Set(["bcra_mora_activa", "bcra_demasiados_activos", "bcra_mora_historica"]);
+
+const normalizePeriodValue = (value) => {
+  if (typeof value === "number") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+};
+
+const normalizeSituacionValue = (value) => {
+  if (value === null || value === undefined) {
+    return 0;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  if (typeof value === "object") {
+    if (value === null) {
+      return 0;
+    }
+    if ("codigo" in value) {
+      return normalizeSituacionValue(value.codigo);
+    }
+    if ("code" in value) {
+      return normalizeSituacionValue(value.code);
+    }
+    if ("valor" in value) {
+      return normalizeSituacionValue(value.valor);
+    }
+    if ("value" in value) {
+      return normalizeSituacionValue(value.value);
+    }
+  }
+  return 0;
+};
+
+const normalizeEntities = (period) => (Array.isArray(period?.entidades) ? period.entidades.filter(Boolean) : []);
+
+export const evaluateBcraEligibility = (bcraData, bcraHistoricalData, messages = rejectionMessages) => {
+  const effectiveHistorical = bcraHistoricalData || bcraData;
+  if (!bcraData && !bcraHistoricalData) {
+    return { ok: false, message: messages.missingData, reason: "bcra_sin_datos" };
+  }
+
+  const periodos = Array.isArray(bcraData?.periodos) ? [...bcraData.periodos] : [];
+  periodos.sort((a, b) => normalizePeriodValue(b?.periodo) - normalizePeriodValue(a?.periodo));
+  const [activePeriod] = periodos;
+  const activeEntities = activePeriod ? normalizeEntities(activePeriod) : [];
+
+  if (activeEntities.length >= 5) {
+    return { ok: false, message: messages.tooManyActive, reason: "bcra_demasiados_activos" };
+  }
+
+  const hasActiveMorosos = activeEntities.some((entity) => {
+    const situacion = normalizeSituacionValue(entity?.situacion);
+    return situacion >= 2;
+  });
+  if (hasActiveMorosos) {
+    return { ok: false, message: messages.activeMora, reason: "bcra_mora_activa" };
+  }
+
+  const historicalPeriods = Array.isArray(effectiveHistorical?.periodos) ? effectiveHistorical.periodos : [];
+  const historicalEntities = historicalPeriods.flatMap((period) => normalizeEntities(period));
+  if (!historicalEntities.length && !activeEntities.length) {
+    console.warn("Paso4.evaluateBcraEligibility sin historicos en BCRA", effectiveHistorical);
+    return { ok: false, message: messages.noProducts, reason: "bcra_sin_productos" };
+  }
+
+  const hasHistoricalMorosos = historicalEntities.some((entity) => {
+    const situacion = normalizeSituacionValue(entity?.situacion);
+    return situacion > 2;
+  });
+  if (hasHistoricalMorosos) {
+    return { ok: false, message: messages.historicalMora, reason: "bcra_mora_historica" };
+  }
+
+  return { ok: true };
+};
 
 export const BCRA_TEST_CUILS = Object.freeze({
   APROBADO: "20303948091",
@@ -201,12 +301,18 @@ function Paso4() {
   const [manualName, setManualName] = useState("");
   const [bcraData, setBcraData] = useState(null);
   const [bcraHistoricalData, setBcraHistoricalData] = useState(null);
+  const [rejectionPrompt, setRejectionPrompt] = useState(null);
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [isContactValidating, setIsContactValidating] = useState(false);
+  const rejectionPersistedRef = useRef(false);
   const rejectionLockRef = useRef(0);
   useGlobalLoadingEffect(isLoading);
 
   const formattedDate = useMemo(() => formatDate(birthdate), [birthdate]);
   const formattedCuil = useMemo(() => formatCuil(cuil), [cuil]);
   const finalName = useMemo(() => (personName || manualName || "").trim(), [personName, manualName]);
+  const contactPhoneDigits = useMemo(() => String(contactPhone || "").replace(/\D/g, ""), [contactPhone]);
 
   useEffect(() => {
     if (personName) {
@@ -306,19 +412,58 @@ function Paso4() {
 
         const endpointActual = `https://api.bcra.gob.ar/CentralDeDeudores/v1.0/Deudas/${cuil}`;
         const endpointHistorico = `https://api.bcra.gob.ar/CentralDeDeudores/v1.0/Deudas/Historicas/${cuil}`;
-        const [normalizedResults, historicalResults] = await Promise.all([
-          requestBcraPayload(endpointActual),
-          requestBcraPayload(endpointHistorico),
-        ]);
-        const name = extractName(normalizedResults);
+
+        let normalizedResults = null;
+        let historicalResults = null;
+        let actualError = null;
+
+        try {
+          normalizedResults = await requestBcraPayload(endpointActual);
+        } catch (err) {
+          // No frenamos: seguimos con historico aunque el endpoint actual falle
+          actualError = err;
+          console.warn("Paso4 BCRA actual fallo, continuo con historico", err?.payload || err?.message);
+          normalizedResults = null;
+        }
+
+        try {
+          historicalResults = await requestBcraPayload(endpointHistorico);
+        } catch (errHistorico) {
+          // Solo propagamos si tampoco tenemos datos del endpoint actual
+          if (!normalizedResults) {
+            throw errHistorico;
+          }
+        }
+
+        if (!normalizedResults && !historicalResults) {
+          throw actualError || new Error("Sin datos de BCRA");
+        }
+
+        // Si no hay datos en la consulta actual, usamos el historico como fuente principal para nombre y periodos
+        const primaryResults =
+          (normalizedResults && Array.isArray(normalizedResults?.periodos) && normalizedResults.periodos.length
+            ? normalizedResults
+            : null) || historicalResults || normalizedResults;
+
+        const name = extractName(primaryResults || historicalResults || normalizedResults);
         const normalizedName = String(name || "").trim();
         if (!normalizedName) {
-          throw new Error("Respuesta sin nombre");
+          if (isMounted) {
+            setBcraData(primaryResults || normalizedResults || historicalResults);
+            setBcraHistoricalData(historicalResults || primaryResults || normalizedResults);
+            setPersonName("");
+            setManualName("");
+            setError("No pudimos obtener tu nombre desde BCRA, ingresalo manualmente para continuar.");
+          }
+          return;
         }
         if (isMounted) {
-          setBcraData(normalizedResults);
-          setBcraHistoricalData(historicalResults);
+          setBcraData(primaryResults || normalizedResults || historicalResults);
+          setBcraHistoricalData(historicalResults || primaryResults || normalizedResults);
           setPersonName(normalizedName.toUpperCase());
+          if (actualError) {
+            setError("");
+          }
         }
       } catch (err) {
         console.error("Paso4 BCRA fetch error", err);
@@ -360,19 +505,13 @@ function Paso4() {
     }
   };
 
-  const rejectionMessages = {
-    tooManyActive:
-      "Lamentablemente no podemos continuar porque segun el BCRA registras muchos productos activos. Intentalo nuevamente cuando hayas reducido la cantidad de productos.",
-    activeMora:
-      "Lamentablemente no podemos continuar porque segun el BCRA registras mora activa con alguna entidad. Regulariza la situacion y volve a intentarlo.",
-    historicalMora:
-      "Lamentablemente no podemos continuar porque segun el BCRA se registran atrasos recientes. Volve a intentarlo cuando tu historial lo permita.",
-    missingData:
-      "No pudimos validar la informacion del BCRA. Reintenta la consulta o verifica el CUIL/CUIT.",
-    noProducts:
-      "No pudimos continuar porque el BCRA no reporta productos historicos a tu nombre. Verifica el CUIL/CUIT o comunicate con nosotros para seguir la gestion.",
-  };
+  const shouldCollectContact = (reason) => rejectionContactReasons.has(reason);
 
+  const isValidContactPhone = (value) => contactPhoneDigits.length === 10;
+  const isValidContactEmail = (value) => {
+    const normalized = String(value || "").trim();
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
+  };
   const persistRejection = async (motivo, motivoCodigo, origen = "paso4", extra = {}) => {
     if (!motivo || !cuil) {
       return;
@@ -411,104 +550,107 @@ function Paso4() {
     }
   };
 
-const normalizePeriodValue = (value) => {
-  if (typeof value === "number") {
-    return value;
-  }
-  if (typeof value === "string") {
-      const parsed = Number(value);
-      return Number.isNaN(parsed) ? 0 : parsed;
-  }
-  return 0;
-};
 
-const normalizeSituacionValue = (value) => {
-  if (value === null || value === undefined) {
-    return 0;
-  }
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : 0;
-  }
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    return Number.isNaN(parsed) ? 0 : parsed;
-  }
-  if (typeof value === "object") {
-    if (value === null) {
-      return 0;
+  const resetRejectionPrompt = () => {
+    setRejectionPrompt(null);
+    setContactPhone("");
+    setContactEmail("");
+  };
+
+  const openRejectionPrompt = (evaluation) => {
+    setRejectionPrompt(evaluation);
+    setContactPhone("");
+    setContactEmail("");
+    rejectionPersistedRef.current = false;
+  };
+
+  const persistCurrentRejection = async (extra = {}, origen = "paso4_confirmacion") => {
+    if (!rejectionPrompt || rejectionPersistedRef.current) {
+      return;
     }
-    if ("codigo" in value) {
-      return normalizeSituacionValue(value.codigo);
+    await persistRejection(
+      rejectionPrompt.message,
+      rejectionPrompt.reason,
+      origen,
+      { evaluacion: rejectionPrompt, ...extra }
+    );
+    rejectionPersistedRef.current = true;
+  };
+
+  const handleRejectionClose = async () => {
+    await persistCurrentRejection();
+    resetRejectionPrompt();
+  };
+
+  const handleRejectionContactSubmit = async () => {
+    if (isContactValidating || !isValidContactPhone(contactPhone) || !isValidContactEmail(contactEmail)) {
+      return;
     }
-    if ("code" in value) {
-      return normalizeSituacionValue(value.code);
+    setIsContactValidating(true);
+    try {
+      const validation = await validateTarjetaContact({
+        teléfono: contactPhoneDigits,
+        email: contactEmail,
+        nombreCompleto: finalName,
+      });
+
+      if (!validation.ok) {
+        const conflictMessages = [];
+        if (validation.conflictos.length) {
+          const fieldsText =
+            validation.conflictos.length === 2
+              ? "El celular y el correo"
+              : validation.conflictos[0] === "teléfono"
+              ? "El celular"
+              : "El correo";
+          conflictMessages.push(
+            `${fieldsText} ya figura asociado a otra persona. Ingresalo nuevamente o usa otro dato de contacto.`
+          );
+        }
+        if (validation.recientes.length) {
+          const fieldsText =
+            validation.recientes.length === 2
+              ? "El celular y el correo"
+              : validation.recientes[0] === "teléfono"
+              ? "El celular"
+              : "El correo";
+          conflictMessages.push(
+            `${fieldsText} fueron cargados en los ultimos 30 dias. Ingresa datos distintos para continuar.`
+          );
+        }
+        window.alert(conflictMessages.join(" "));
+        setIsContactValidating(false);
+        return;
+      }
+
+      await persistCurrentRejection(
+        {
+          teléfono: contactPhoneDigits || null,
+          email: contactEmail.trim() || null,
+          tipoPrestamo: "tarjeta",
+        },
+        "paso4_contacto"
+      );
+      window.alert("Enviamos tus datos de contacto. Un representante te contactara a la brevedad.");
+      resetRejectionPrompt();
+    } catch (err) {
+      console.error("Paso4 contacto tarjeta error", err);
+      window.alert("No pudimos validar los datos de contacto. Intentalo nuevamente.");
+    } finally {
+      setIsContactValidating(false);
     }
-    if ("valor" in value) {
-      return normalizeSituacionValue(value.valor);
-    }
-    if ("value" in value) {
-      return normalizeSituacionValue(value.value);
-    }
-  }
-  return 0;
-};
-
-const normalizeEntities = (period) =>
-  Array.isArray(period?.entidades) ? period.entidades.filter(Boolean) : [];
-
-const evaluateBcraEligibility = () => {
-  if (!bcraData || !bcraHistoricalData) {
-    return { ok: false, message: rejectionMessages.missingData, reason: "bcra_sin_datos" };
-  }
-
-  const periodos = Array.isArray(bcraData?.periodos) ? [...bcraData.periodos] : [];
-  if (!periodos.length) {
-    console.warn("Paso4.evaluateBcraEligibility sin periodos en BCRA", bcraData);
-    return { ok: false, message: rejectionMessages.noProducts, reason: "bcra_sin_productos" };
-  }
-
-  periodos.sort((a, b) => normalizePeriodValue(b?.periodo) - normalizePeriodValue(a?.periodo));
-  const [activePeriod] = periodos;
-  const activeEntities = normalizeEntities(activePeriod);
-
-  if (activeEntities.length >= 5) {
-    return { ok: false, message: rejectionMessages.tooManyActive, reason: "bcra_demasiados_activos" };
-  }
-
-  if (activeEntities.length > 0) {
-    const hasActiveMorosos = activeEntities.some((entity) => {
-      const situacion = normalizeSituacionValue(entity?.situacion);
-      return situacion >= 2;
-    });
-    if (hasActiveMorosos) {
-      return { ok: false, message: rejectionMessages.activeMora, reason: "bcra_mora_activa" };
-    }
-  }
-
-  const historicalPeriods = Array.isArray(bcraHistoricalData?.periodos) ? bcraHistoricalData.periodos : [];
-  const historicalEntities = historicalPeriods.flatMap((period) => normalizeEntities(period));
-  if (!historicalEntities.length) {
-    console.warn("Paso4.evaluateBcraEligibility sin historicos en BCRA", bcraHistoricalData);
-    return { ok: false, message: rejectionMessages.noProducts, reason: "bcra_sin_productos" };
-  }
-
-  const hasHistoricalMorosos = historicalEntities.some((entity) => {
-    const situacion = normalizeSituacionValue(entity?.situacion);
-    return situacion > 1;
-  });
-  if (hasHistoricalMorosos) {
-    return { ok: false, message: rejectionMessages.historicalMora, reason: "bcra_mora_historica" };
-  }
-
-  return { ok: true };
-};
-
+  };
 
   const handleConfirm = async () => {
-    const evaluation = evaluateBcraEligibility();
+    const evaluation = evaluateBcraEligibility(bcraData, bcraHistoricalData, rejectionMessages);
     if (!evaluation.ok) {
-      await persistRejection(evaluation.message, evaluation.reason, "paso4_confirmacion", { evaluacion: evaluation });
-      window.alert(evaluation.message);
+      openRejectionPrompt(evaluation);
+      if (!shouldCollectContact(evaluation.reason)) {
+        await persistRejection(evaluation.message, evaluation.reason, "paso4_confirmacion", {
+          evaluacion: evaluation,
+        });
+        rejectionPersistedRef.current = true;
+      }
       return;
     }
 
@@ -530,9 +672,11 @@ const evaluateBcraEligibility = () => {
   };
 
   const disableConfirm = !finalName || isLoading;
+  const contactInfoInvalid =
+    isContactValidating || !isValidContactPhone(contactPhone) || !isValidContactEmail(contactEmail);
 
-  return (
-    <div>
+    return (
+      <div>
       <div className="banner__container">
         <Banner />
       </div>
@@ -543,6 +687,9 @@ const evaluateBcraEligibility = () => {
               <LottieAnim width={600} height={600} />
             </div>
           </div>
+          <div className="spacer__cuil">
+        </div>
+
           <div className="verification__container__panel_right">
             <div className="verification__details">
               <div className="verification__details-row">
@@ -576,7 +723,7 @@ const evaluateBcraEligibility = () => {
                       type="button"
                       className="verification__btn verification__btn--small"
                       onClick={handleRetry}
-                    >
+                      >
                       Reintentar
                     </button>
                     <p className="verification__manual-caption">Ingresa tu nombre si deseas continuar:</p>
@@ -586,13 +733,13 @@ const evaluateBcraEligibility = () => {
                       value={manualName}
                       onChange={(event) => setManualName(event.target.value)}
                       placeholder="Nombre y apellido"
-                    />
+                      />
                   </div>
                 </div>
               )}
               {!isLoading && finalName && (
                 <h2 className="verification__question">
-                  Usted es <span className="verification__highlight">{finalName.toUpperCase()}</span> ?
+                  ¿Usted es: <span className="verification__highlight">{finalName.toUpperCase()}</span> ?
                 </h2>
               )}
             </div>
@@ -602,7 +749,7 @@ const evaluateBcraEligibility = () => {
                 className="verification__btn"
                 onClick={handleConfirm}
                 disabled={disableConfirm}
-              >
+                >
                 Si, soy yo
               </button>
               <button className="verification__btn" onClick={handleReject}>
@@ -615,13 +762,85 @@ const evaluateBcraEligibility = () => {
           </div>
         </div>
       </div>
+      {rejectionPrompt && (
+        <div
+        className="rejection-modal"
+        style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "16px",
+            zIndex: 1000,
+          }}
+          >
+          <div
+            className="rejection-modal__content"
+            style={{
+              background: "#ffffff",
+              maxWidth: "560px",
+              width: "100%",
+              borderRadius: "12px",
+              padding: "20px",
+              boxShadow: "0 12px 30px rgba(0, 0, 0, 0.25)",
+            }}
+            >
+            <p style={{ marginBottom: shouldCollectContact(rejectionPrompt.reason) ? "14px" : "10px" }}>
+              {rejectionPrompt.message}
+            </p>
+            {shouldCollectContact(rejectionPrompt.reason) && (
+              <>
+                <label style={{ display: "block", fontWeight: 600, marginBottom: "4px" }}>Celular:</label>
+                <input
+                  type="tel"
+                  className="verification__input"
+                  value={contactPhone}
+                  onChange={(event) => setContactPhone(event.target.value)}
+                  placeholder="Ej: 11 2345 6789"
+                  style={{ marginBottom: "12px" }}
+                  />
+                {contactPhone && !isValidContactPhone(contactPhone) && (
+                  <p style={{ color: "#b00020", marginTop: "-6px", marginBottom: "10px", fontSize: "0.9rem" }}>
+                    El celular debe tener exactamente 10 numeros.
+                  </p>
+                )}
+                <label style={{ display: "block", fontWeight: 600, marginBottom: "4px" }}>Correo:</label>
+                <input
+                  type="email"
+                  className="verification__input"
+                  value={contactEmail}
+                  onChange={(event) => setContactEmail(event.target.value)}
+                  placeholder="correo@ejemplo.com"
+                  />
+                {contactEmail && !isValidContactEmail(contactEmail) && (
+                  <p style={{ color: "#b00020", marginTop: "1px", marginBottom: "10px", fontSize: "0.9rem" }}>
+                    Ingrese un correo valido (ej: nombre@dominio.com).
+                  </p>
+                )}
+              </>
+            )}
+            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "18px" }}>
+              {shouldCollectContact(rejectionPrompt.reason) && (
+                <button
+                type="button"
+                className="verification__btn"
+                onClick={handleRejectionContactSubmit}
+                disabled={contactInfoInvalid}
+                >
+                  Enviar
+                </button>
+              )}
+              <button type="button" className="verification__btn verification__btn--small" onClick={handleRejectionClose}>
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export default Paso4;
-
-
-
-
-

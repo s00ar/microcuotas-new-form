@@ -183,7 +183,7 @@ function ClientForm() {
       <div className="banner__container">
         <Banner />
       </div>
-      <h1 className="firsth1">SolicitÃ¡ tu crÃ©dito</h1>
+      <h1 className="firsth1">Solicitá tu crédito</h1>
       <form onSubmit={handleSubmit}>
         <div className="form__container">
           <div className="form__container__leftpanel">
@@ -281,7 +281,7 @@ function ClientForm() {
           </p>
         </div>
       </form>
-      <p className="version-text">v3.7.6</p>
+      <p className="version-text">v4.0.4</p>
     
     </div>
   );

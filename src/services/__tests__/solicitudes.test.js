@@ -7,8 +7,10 @@ import saveSolicitud, {
   normalizeFieldValue,
   saveAceptada,
   saveRechazo,
+  validateTarjetaContact,
 } from "../solicitudes";
 import * as solicitudesModule from "../solicitudes";
+import { signInAnonymously } from "firebase/auth";
 import {
   addDoc,
   collection,
@@ -27,7 +29,16 @@ jest.mock("firebase/firestore", () => ({
   serverTimestamp: jest.fn(() => "server-timestamp"),
 }));
 
-jest.mock("../../firebase", () => ({ db: { projectId: "demo-project" } }));
+jest.mock("firebase/auth", () => ({
+  signInAnonymously: jest.fn(),
+}));
+
+jest.mock("../../firebase", () => {
+  const auth = { currentUser: { uid: "demo-user" } };
+  return { db: { projectId: "demo-project" }, auth };
+});
+
+const { auth: mockAuth } = require("../../firebase");
 
 const buildSnapshot = (docs) => {
   const docSnaps = docs.map((data) => ({
@@ -46,6 +57,8 @@ describe("solicitudes service helpers", () => {
     getDocs.mockResolvedValue(buildSnapshot([]));
     addDoc.mockResolvedValue({ id: "mock-doc" });
     serverTimestamp.mockReturnValue("server-timestamp");
+    mockAuth.currentUser = { uid: "demo-user" };
+    signInAnonymously.mockResolvedValue({ user: { uid: "anon-user" } });
   });
 
   it("maps known rejection reasons", () => {
@@ -162,6 +175,34 @@ describe("solicitudes service helpers", () => {
     uniqueSpy.mockRestore();
   });
 
+  it("reintenta guardar tras autenticarse cuando falta permiso en el primer intento", async () => {
+    mockAuth.currentUser = null;
+    const permissionError = new Error("Missing or insufficient permissions");
+    permissionError.code = "permission-denied";
+    addDoc
+      .mockRejectedValueOnce(permissionError)
+      .mockResolvedValueOnce({ id: "aceptada-retry" });
+    signInAnonymously.mockImplementation(async () => {
+      mockAuth.currentUser = { uid: "anon-user" };
+      return { user: mockAuth.currentUser };
+    });
+    const uniqueSpy = jest.spyOn(solicitudesModule, "isFieldUnique").mockResolvedValue(true);
+
+    await expect(
+      saveAceptada({
+        nombre: "Retry",
+        apellido: "Flow",
+        cuil: "20-12345678-9",
+        telefono: "1140000000",
+        email: "retry@mail.com",
+      })
+    ).resolves.toBeDefined();
+
+    expect(signInAnonymously).toHaveBeenCalledTimes(1);
+    expect(addDoc).toHaveBeenCalledTimes(2);
+    uniqueSpy.mockRestore();
+  });
+
   it("throws duplicate_fields when uniqueness checks fail", async () => {
     getDocs.mockResolvedValueOnce(
       buildSnapshot([{ telefono: "1140000000", estado: "pendiente", cuil: "20123456789" }])
@@ -174,5 +215,47 @@ describe("solicitudes service helpers", () => {
       })
     ).rejects.toMatchObject({ code: "duplicate_fields", fields: ["telefono"] });
     expect(addDoc).not.toHaveBeenCalled();
+  });
+
+  it("detects contactos de tarjeta asociados a otro nombre", async () => {
+    const oldDate = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000);
+    getDocs
+      .mockResolvedValueOnce(
+        buildSnapshot([
+          { telefono: "1140000000", nombreCompleto: "Otro Cliente", timestamp: oldDate },
+        ])
+      )
+      .mockResolvedValueOnce(buildSnapshot([]));
+
+    const result = await validateTarjetaContact({
+      telefono: "11 4000-0000",
+      email: "nuevo@mail.com",
+      nombreCompleto: "Demo Test",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.conflictos).toEqual(["telefono"]);
+    expect(result.recientes).toEqual([]);
+  });
+
+  it("bloquea contactos de tarjeta usados en los ultimos 30 dias", async () => {
+    const recentDate = new Date();
+    getDocs
+      .mockResolvedValueOnce(
+        buildSnapshot([{ telefono: "1140000000", nombreCompleto: "Demo Test", timestamp: recentDate }])
+      )
+      .mockResolvedValueOnce(
+        buildSnapshot([{ email: "demo@mail.com", nombreCompleto: "Demo Test", fechaSolicitud: recentDate }])
+      );
+
+    const result = await validateTarjetaContact({
+      telefono: "1140000000",
+      email: "demo@mail.com",
+      nombreCompleto: "Demo Test",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.recientes).toEqual(expect.arrayContaining(["telefono", "email"]));
+    expect(result.conflictos).toEqual([]);
   });
 });

@@ -1,5 +1,5 @@
 .header {
-    background-image: linear-gradient(to bottom, rgb(59, 8, 130), rgb(179, 209, 255),rgb(59, 8, 130));
+    background-image: linear-gradient(to bottom, rgb(29, 153, 255), white,rgb(29, 153, 255));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -20,7 +20,29 @@
   
   .header .barra-navegacion a {
     text-decoration: none;
-    color: rgb(179, 209, 255);
+    color: rgb(0, 0, 0);
     padding: 1rem;
     font-size: 18px;
+  }
+  /* add media query for mobiles */
+  @media (max-width: 600px) {
+    .header {
+      flex-direction: row;
+      height: auto;
+    }
+  
+    .header img {
+      height: 80px;
+      margin-bottom: 10px;
+    }
+  
+    .header .barra-navegacion {
+      height: auto;
+      flex-direction: row;
+    }
+  
+    .header .barra-navegacion a {
+      font-size: 16px;
+      padding: 0.5rem;
+    }
   }

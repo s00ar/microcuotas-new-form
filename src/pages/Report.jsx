@@ -64,6 +64,20 @@ const buildClienteDerivedData = (cliente) => {
     rawMotivoCodigo &&
     !["", "null", "undefined"].includes(rawMotivoCodigo.toLowerCase());
   const motivoOptionValue = hasCodigo ? rawMotivoCodigo : normalizedResolvedMotivo || resolvedMotivo;
+  const normalizedTipoPrestamo = normalizeText(cliente.tipoPrestamo);
+  const fallbackTipo =
+    normalizedTipoPrestamo ||
+    (normalizeText(cliente.origen || "").includes("tarjeta")
+      ? "tarjeta"
+      : aceptada
+      ? "personal"
+      : "");
+  const tipoPrestamoLabel =
+    fallbackTipo === "tarjeta"
+      ? "Tarjeta"
+      : fallbackTipo === "personal"
+      ? "Personal"
+      : "No especificado";
 
   const searchableValues = [
     cliente.cuil,
@@ -80,6 +94,7 @@ const buildClienteDerivedData = (cliente) => {
     cliente.monto,
     timestampLabel,
     resolvedMotivo,
+    tipoPrestamoLabel,
   ].map(toSafeString);
   const searchableText = normalizeText(searchableValues.join(" "));
 
@@ -92,6 +107,8 @@ const buildClienteDerivedData = (cliente) => {
     _normalizedMotivo: normalizedResolvedMotivo,
     _motivoOptionValue: motivoOptionValue,
     _estadoNormalized: normalizedEstado,
+    _tipoPrestamo: fallbackTipo || "",
+    _tipoPrestamoLabel: tipoPrestamoLabel,
   };
 };
 
@@ -103,6 +120,7 @@ const COLUMN_FILTER_DEFAULTS = Object.freeze({
   apellido: "todos",
   telefono: "todos",
   email: "todos",
+  tipoPrestamo: "todos",
   fecha: "todos",
 });
 
@@ -179,6 +197,7 @@ export default function Admin() {
       "email",
       "monto",
       "cuotas",
+      "tipoPrestamo",
       "estado",
       "motivoRechazo",
       "motivoRechazoCodigo",
@@ -190,24 +209,27 @@ export default function Admin() {
       "\n",
     ];
     let csvRows = filteredData.map((e) => {
-      let _ = [];
-      _[0] = e.nombre;
-      _[1] = e.apellido;
-      _[2] = e.cuil;
-      _[3] = e.telefono;
-      _[4] = e.email || "";
-      _[5] = e.monto;
-      _[6] = e.cuotas;
-      _[7] = e.estado || "";
-      _[8] = e.motivoRechazo || "";
-      _[9] = e.motivoRechazoCodigo || "";
-      _[10] = e.ingresoMensual || "";
-      _[11] = e.fechaIngreso ? `"${e.fechaIngreso}"` : "";
-      const fecha = e._timestampDate || firebaseTimestampToDate(e.timestamp);
-      _[12] = fecha ? fecha.toISOString() : "";
-      _[13] = "\n";
-      return _;
-    });
+    let _ = [];
+    _[0] = e.nombre;
+    _[1] = e.apellido;
+    _[2] = e.cuil;
+    _[3] = e.telefono;
+    _[4] = e.email || "";
+    _[5] = e.monto;
+    _[6] = e.cuotas;
+    _[7] = e._tipoPrestamoLabel || e.tipoPrestamo || "";
+    _[8] = e.estado || "";
+    _[9] = e.motivoRechazo || "";
+    _[10] = e.motivoRechazoCodigo || "";
+    _[11] = e.resultadoEvaluacionCodigo || "";
+    _[12] = e.resultadoEvaluacionDescripcion || "";
+    _[13] = e.ingresoMensual || "";
+    _[14] = e.fechaIngreso ? `"${e.fechaIngreso}"` : "";
+    const fecha = e._timestampDate || firebaseTimestampToDate(e.timestamp);
+    _[15] = fecha ? fecha.toISOString() : "";
+    _[16] = "\n";
+    return _;
+  });
     var pom = document.createElement("a");
     var blob = new Blob([header, ...csvRows], {
       type: "text/csv;charset=utf-8;",
@@ -348,6 +370,15 @@ export default function Admin() {
       filtered = filtered.filter((cliente) => String(cliente.email || "") === columnFilters.email);
     }
 
+    if (columnFilters.tipoPrestamo && columnFilters.tipoPrestamo !== "todos") {
+      filtered = filtered.filter((cliente) => {
+        const normalizedTipo = cliente._tipoPrestamo || normalizeText(cliente.tipoPrestamo);
+        const normalizedLabel = normalizeText(cliente._tipoPrestamoLabel || "");
+        const normalizedFilter = normalizeText(columnFilters.tipoPrestamo);
+        return normalizedTipo === normalizedFilter || normalizedLabel === normalizedFilter;
+      });
+    }
+
     if (columnFilters.fecha && columnFilters.fecha !== "todos") {
       filtered = filtered.filter((cliente) => {
         if (cliente._timestampLabel) {
@@ -461,6 +492,7 @@ export default function Admin() {
       apellido: new Set(),
       telefono: new Set(),
       email: new Set(),
+      tipoPrestamo: new Set(),
       fecha: new Set(),
     };
 
@@ -480,6 +512,9 @@ export default function Admin() {
       if (cliente.email) {
         sets.email.add(String(cliente.email));
       }
+      if (cliente._tipoPrestamoLabel) {
+        sets.tipoPrestamo.add(String(cliente._tipoPrestamoLabel));
+      }
       const fecha =
         cliente._timestampLabel ||
         (firebaseTimestampToDate(cliente.timestamp)?.toDateString() || "");
@@ -496,6 +531,7 @@ export default function Admin() {
       apellido: toSortedArray(sets.apellido),
       telefono: toSortedArray(sets.telefono),
       email: toSortedArray(sets.email),
+      tipoPrestamo: toSortedArray(sets.tipoPrestamo),
       fecha: toSortedArray(sets.fecha),
     };
   }, [fullClientesData]);
@@ -589,6 +625,13 @@ export default function Admin() {
     }
     if (columnFilters.email !== "todos" && !columnOptions.email.includes(columnFilters.email)) {
       nextFilters.email = "todos";
+      changed = true;
+    }
+    if (
+      columnFilters.tipoPrestamo !== "todos" &&
+      !columnOptions.tipoPrestamo.includes(columnFilters.tipoPrestamo)
+    ) {
+      nextFilters.tipoPrestamo = "todos";
       changed = true;
     }
     if (columnFilters.fecha !== "todos" && !columnOptions.fecha.includes(columnFilters.fecha)) {
@@ -768,6 +811,24 @@ export default function Admin() {
                     </select>
                   </div>
                 </th>
+                <th>
+                  <div className="table__header-cell">
+                    <span>Tipo prestamo</span>
+                    <select
+                      className="table__header-filter"
+                      value={columnFilters.tipoPrestamo}
+                      onChange={handleColumnFilterChange("tipoPrestamo")}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <option value="todos">Todos</option>
+                      {columnOptions.tipoPrestamo.map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </th>
                 <th onClick={sortByFechaSolicitudDescend}>
                   <div className="table__header-cell">
                     <span>Fecha Solicitud</span>
@@ -838,6 +899,7 @@ export default function Admin() {
                   (firebaseTimestampToDate(cliente.timestamp)?.toDateString() || "-");
                 const telefonoVisible = cliente.telefono || "-";
                 const emailVisible = cliente.email || "-";
+                const tipoPrestamoVisible = cliente._tipoPrestamoLabel || "No especificado";
                 const estadoVisible =
                   estadoNormalizado === "aceptada"
                     ? "Si"
@@ -851,6 +913,7 @@ export default function Admin() {
                     <td>{cliente.apellido || "-"}</td>
                     <td>{telefonoVisible}</td>
                     <td>{emailVisible}</td>
+                    <td>{tipoPrestamoVisible}</td>
                     <td>{fechaFormateada}</td>
                     <td>{estadoVisible}</td>
                     <td>

@@ -1,17 +1,18 @@
 ﻿import { addDoc, collection, getDocs, query, serverTimestamp, where } from "firebase/firestore";
-import { db } from "../firebase";
+import { signInAnonymously } from "firebase/auth";
+import { auth, db } from "../firebase";
 
 export const RESULTADOS_EVALUACION = Object.freeze({
-  MENOR_21: { codigo: 1, descripcion: "Rechazo por menor de 21 años." },
+  MENOR_21: { codigo: 1, descripcion: "Rechazo por menor de 30 años." },
   DEMASIADOS_ACTIVOS: { codigo: 2, descripcion: "Rechazo por más de 5 productos activos." },
   MORA_ACTIVA: { codigo: 3, descripcion: "Rechazo por situación 2 de los activos." },
   HISTORIAL_SUPERIOR_DOS: {
     codigo: 4,
-    descripcion: "Productos historicos igualan o superan situacion 2, o no tiene prod. hist.",
+    descripcion: "Productos historicos alcanzan situacion 3, o no tiene prod. hist.",
   },
   APROBADO: {
     codigo: 5,
-    descripcion: "Aprobado: ninguno de los prod. hist. alcanza la situacion 2 (todos en situacion 1).",
+    descripcion: "Aprobado: ningun producto historico supera la situacion 2.",
   },
 });
 
@@ -34,6 +35,45 @@ const clientesCollection = collection(db, "clientes");
 
 const STRICT_UNIQUE_FIELDS = ["telefono", "email"];
 const FIELDS_TO_NORMALIZE = ["cuil", "telefono", "email"];
+
+let ensureAuthPromise = null;
+export const ensureFirestoreAuth = async () => {
+  if (!auth) {
+    return null;
+  }
+  if (auth.currentUser) {
+    return auth.currentUser;
+  }
+  if (!ensureAuthPromise) {
+    ensureAuthPromise = signInAnonymously(auth)
+      .then((cred) => cred?.user ?? null)
+      .catch((error) => {
+        console.warn("No se pudo autenticar anonimamente contra Firestore", error);
+        return null;
+      })
+      .finally(() => {
+        ensureAuthPromise = null;
+      });
+  }
+  return ensureAuthPromise;
+};
+
+const runWithAuthRetry = async (operation) => {
+  let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await ensureFirestoreAuth();
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (isPermissionDeniedError(error) && attempt === 0) {
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError;
+};
 
 const isPermissionDeniedError = (error) => {
   if (!error) {
@@ -87,6 +127,26 @@ const getDateFromTimestamp = (timestamp) => {
   return null;
 };
 
+const normalizeNameValue = (value) => {
+  if (!value) {
+    return "";
+  }
+  return String(value).replace(/\s+/g, " ").trim().toLowerCase();
+};
+
+const extractNombreCompleto = (data = {}) => {
+  if (data.nombreCompleto) {
+    return data.nombreCompleto;
+  }
+  const nombre = data.nombre || "";
+  const apellido = data.apellido || "";
+  const combined = `${nombre} ${apellido}`.trim();
+  if (combined) {
+    return combined;
+  }
+  return nombre || apellido || "";
+};
+
 export const isFieldUnique = async (field, value, options = {}) => {
   if (!field) {
     return true;
@@ -99,11 +159,11 @@ export const isFieldUnique = async (field, value, options = {}) => {
   const q = query(clientesCollection, where(field, "==", normalizedValue));
   let snapshot;
   try {
-    snapshot = await getDocs(q);
+    snapshot = await runWithAuthRetry(() => getDocs(q));
   } catch (error) {
     if (isPermissionDeniedError(error)) {
       console.warn(
-        "isFieldUnique: omito la validaci\u00f3n porque Firestore deneg\u00f3 los permisos de lectura."
+        "isFieldUnique: omito la validación porque Firestore denegó los permisos de lectura."
       );
       return true;
     }
@@ -151,7 +211,7 @@ export const getCuilRecency = async (cuilValue, windowDays = 30) => {
   const q = query(clientesCollection, where("cuil", "==", normalized));
   let snapshot;
   try {
-    snapshot = await getDocs(q);
+    snapshot = await runWithAuthRetry(() => getDocs(q));
   } catch (error) {
     if (isPermissionDeniedError(error)) {
       console.warn(
@@ -185,6 +245,126 @@ export const getCuilRecency = async (cuilValue, windowDays = 30) => {
 export const isCuilRegistrable = async (cuilValue, windowDays = 30) => {
   const { canRegister } = await getCuilRecency(cuilValue, windowDays);
   return canRegister;
+};
+
+export const getFieldUsageDetails = async (field, value, options = {}) => {
+  if (!field) {
+    return {
+      hasNameConflict: false,
+      isRecent: false,
+      lastDate: null,
+      normalizedValue: "",
+      normalizedNames: [],
+    };
+  }
+  const normalizedValue = normalizeFieldValue(field, value);
+  if (!normalizedValue) {
+    return {
+      hasNameConflict: false,
+      isRecent: false,
+      lastDate: null,
+      normalizedValue: "",
+      normalizedNames: [],
+    };
+  }
+
+  const q = query(clientesCollection, where(field, "==", normalizedValue));
+  let snapshot;
+  try {
+    snapshot = await runWithAuthRetry(() => getDocs(q));
+  } catch (error) {
+    if (isPermissionDeniedError(error)) {
+      console.warn(
+        "getFieldUsageDetails: omito la validacion porque Firestore denego permisos de lectura."
+      );
+      return {
+        hasNameConflict: false,
+        isRecent: false,
+        lastDate: null,
+        normalizedValue,
+        normalizedNames: [],
+      };
+    }
+    throw error;
+  }
+
+  if (snapshot.empty) {
+    return {
+      hasNameConflict: false,
+      isRecent: false,
+      lastDate: null,
+      normalizedValue,
+      normalizedNames: [],
+    };
+  }
+
+  const windowDays = typeof options.windowDays === "number" ? options.windowDays : 30;
+  const referenceName = normalizeNameValue(options.referenceName || "");
+  const cutoff = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+
+  let latestDate = null;
+  const namesSet = new Set();
+
+  snapshot.docs.forEach((docSnap) => {
+    const data = (typeof docSnap.data === "function" ? docSnap.data() : docSnap.data) || {};
+    const docName = normalizeNameValue(extractNombreCompleto(data));
+    if (docName) {
+      namesSet.add(docName);
+    }
+    const ts = getDateFromTimestamp(data.timestamp) || getDateFromTimestamp(data.fechaSolicitud);
+    if (ts && (!latestDate || ts > latestDate)) {
+      latestDate = ts;
+    }
+  });
+
+  const hasNameConflict =
+    referenceName &&
+    Array.from(namesSet).some((storedName) => storedName && storedName !== referenceName);
+  const isRecent = latestDate ? latestDate > cutoff : false;
+
+  return {
+    hasNameConflict,
+    isRecent,
+    lastDate: latestDate,
+    normalizedValue,
+    normalizedNames: Array.from(namesSet),
+  };
+};
+
+export const validateTarjetaContact = async (
+  { telefono, email, nombreCompleto },
+  windowDays = 30
+) => {
+  const referenceName = normalizeNameValue(nombreCompleto);
+  const telefonoInfo = await getFieldUsageDetails("telefono", telefono, {
+    windowDays,
+    referenceName,
+  });
+  const emailInfo = await getFieldUsageDetails("email", email, { windowDays, referenceName });
+
+  const conflicts = [];
+  const recent = [];
+
+  if (telefonoInfo.hasNameConflict) {
+    conflicts.push("telefono");
+  }
+  if (emailInfo.hasNameConflict) {
+    conflicts.push("email");
+  }
+  if (telefonoInfo.isRecent) {
+    recent.push("telefono");
+  }
+  if (emailInfo.isRecent) {
+    recent.push("email");
+  }
+
+  return {
+    ok: conflicts.length === 0 && recent.length === 0,
+    conflictos: conflicts,
+    recientes: recent,
+    telefonoInfo,
+    emailInfo,
+  };
 };
 
 const ensureUniqueFields = async (payload) => {
@@ -230,10 +410,12 @@ const saveSolicitud = async (payload, options = {}) => {
   if (!skipUniqueValidation) {
     await ensureUniqueFields(sanitizedPayload);
   }
-  const docRef = await addDoc(clientesCollection, {
-    ...sanitizedPayload,
-    timestamp: serverTimestamp(),
-  });
+  const docRef = await runWithAuthRetry(() =>
+    addDoc(clientesCollection, {
+      ...sanitizedPayload,
+      timestamp: serverTimestamp(),
+    })
+  );
   return docRef;
 };
 
@@ -277,6 +459,7 @@ export const saveAceptada = async ({
           descripcion: resultadoEvaluacionDescripcion,
         }
       : RESULTADOS_EVALUACION.APROBADO;
+  const tipoPrestamo = payload.tipoPrestamo || "personal";
 
   return saveSolicitud({
     estado: "aceptada",
@@ -284,6 +467,7 @@ export const saveAceptada = async ({
     motivoRechazoCodigo: null,
     resultadoEvaluacionCodigo: resultado.codigo,
     resultadoEvaluacionDescripcion: resultado.descripcion,
+    tipoPrestamo,
     ...payload,
   });
 };

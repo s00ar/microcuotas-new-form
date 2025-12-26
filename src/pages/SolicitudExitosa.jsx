@@ -37,11 +37,13 @@ function SolicitudExitosa() {
               Muchas gracias {displayName}. En breve nos vamos a comunicar para continuar con el proceso.
             </p>
             <div className="verification__actions">
-              <a href="https://microcuotas.com.ar/">
-              <button className="verification__btn">
-                Continuar
-              </button>
-              </a>
+              <div className="spacer__cuil">
+                <a href="https://microcuotas.com.ar/">
+                <button className="verification__btn">
+                  Continuar
+                </button>
+                </a>
+              </div>
             </div>
           </div>
         </div>
