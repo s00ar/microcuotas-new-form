@@ -26,6 +26,11 @@ export default function LottieAnim({ width = 300, height = 300 }) {
   }, []);
 
   return (
-    <div className="lottie-web" ref={container} style={{ width, height, margin: "0 auto" }} />
+    <div className="lottie-web" ref={container} style={{ 
+    width,
+    height,
+    margin: "0 auto",
+    position: "relative",
+    zIndex: 0 }} />
   );
 }
