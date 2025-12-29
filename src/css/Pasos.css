@@ -177,9 +177,12 @@
     width: 60%;
     margin: 0 auto;
     margin-top: 1rem;
+    margin-left: 21rem;
+    margin-right: -21rem;
     border-radius: 8px; /* Bordes redondeados */
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Sombra suave */
-    z-index: 1000; /* Asegura que esta encima de otros elementos */
+    position: relative; /* Permite aplicar z-index de forma efectiva */
+    z-index: 99999; /* Prioridad muy alta para que quede sobre cualquier otro elemento */
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Fuente similar a Windows */
     overflow: hidden; /* Esconde el contenido que se sale del contenedor */
     display: flex; /* Flexbox para el contenido */
@@ -328,6 +331,11 @@
     .verification__container__image_img-container {
         max-width: 50%;
         margin-left: 120px;
+    }
+    .error-message_container {
+        margin-left: 0;
+        margin-right: 0;
+        min-width: 100%;
     }
   }
   

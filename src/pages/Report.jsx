@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuthState } from "react-firebase-hooks/auth";
-import { auth, db, deleteDoc, fetchContactsData, logout } from "../firebase";
+import { auth, db, deleteDoc, fetchContactsData, deleteOldClientesBefore, logout } from "../firebase";
 import { Link, useNavigate } from "react-router-dom";
 import { doc } from "firebase/firestore";
 import "../css/Report.css";
@@ -124,6 +124,46 @@ const COLUMN_FILTER_DEFAULTS = Object.freeze({
   fecha: "todos",
 });
 
+const INITIAL_LIMIT = 200;
+const BACKGROUND_LIMIT = 1000;
+const CACHE_KEY_PREFIX = "reportCache_v1";
+
+const buildCacheKey = (start, end) => `${CACHE_KEY_PREFIX}:${start || "none"}:${end || "none"}`;
+
+const mergeClientesById = (existing = [], incoming = []) => {
+  const map = new Map();
+
+  existing.forEach((cliente) => {
+    const key = cliente.id || `existing-${map.size}`;
+    map.set(key, cliente);
+  });
+
+  incoming.forEach((cliente) => {
+    const key = cliente.id || `incoming-${map.size}`;
+    map.set(key, cliente);
+  });
+
+  const merged = Array.from(map.values());
+  return merged.sort(
+    (a, b) => (b._timestampDate?.getTime() || 0) - (a._timestampDate?.getTime() || 0)
+  );
+};
+
+const clearReportCache = () => {
+  try {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(CACHE_KEY_PREFIX)) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+  } catch (error) {
+    console.warn("No se pudo limpiar el cache local del reporte:", error);
+  }
+};
+
 export default function Admin() {
   const [user, loading] = useAuthState(auth);
   const navigate = useNavigate();
@@ -139,15 +179,59 @@ export default function Admin() {
   const [motivoFiltro, setMotivoFiltro] = useState("todos");
   const [columnFilters, setColumnFilters] = useState(() => ({ ...COLUMN_FILTER_DEFAULTS }));
   const [busquedaGeneral, setBusquedaGeneral] = useState("");
+  const [debouncedBusqueda, setDebouncedBusqueda] = useState("");
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [isPurgingOld, setIsPurgingOld] = useState(false);
+  const [isPrefetchingOld, setIsPrefetchingOld] = useState(false);
+  const [lastFetchedCursor, setLastFetchedCursor] = useState(null);
+  const [hasMoreData, setHasMoreData] = useState(false);
+  const backgroundRunIdRef = useRef(0);
   const lastFetchParamsRef = useRef({ start: undefined, end: undefined });
+  const purgeRunRef = useRef(false);
+  const [currentCacheKey, setCurrentCacheKey] = useState(null);
 
-  useGlobalLoadingEffect(loading || isLoadingData);
+  useGlobalLoadingEffect(loading || isLoadingData || isPurgingOld);
+
+  const purgeOldRecords = useCallback(async () => {
+    if (purgeRunRef.current) {
+      return;
+    }
+    purgeRunRef.current = true;
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 3);
+
+    clearReportCache();
+
+    try {
+      setIsPurgingOld(true);
+      let hasMore = true;
+      while (hasMore) {
+        const result = await deleteOldClientesBefore(cutoff, { batchSize: 500 });
+        hasMore = Boolean(result?.hasMore) && (result?.deleted || 0) > 0;
+        if (!hasMore) {
+          break;
+        }
+      }
+    } catch (error) {
+      console.error("Error eliminando registros antiguos:", error);
+    } finally {
+      setIsPurgingOld(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedBusqueda(busquedaGeneral);
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [busquedaGeneral]);
 
   const loadClientes = useCallback(
     async ({ start, end, force = false } = {}) => {
       const normalizedStart = start ?? null;
       const normalizedEnd = end ?? null;
+      const cacheKey = buildCacheKey(normalizedStart, normalizedEnd);
+      setCurrentCacheKey(cacheKey);
 
       if (
         !force &&
@@ -157,22 +241,74 @@ export default function Admin() {
         return;
       }
 
+      try {
+        const cachedRaw = localStorage.getItem(cacheKey);
+        if (cachedRaw) {
+          const cached = JSON.parse(cachedRaw);
+          const cachedRows = Array.isArray(cached?.rows) ? cached.rows : [];
+          if (cachedRows.length) {
+            const enrichedCached = cachedRows.map(buildClienteDerivedData);
+            setFullClientesData(enrichedCached);
+            setPage(0);
+          }
+        }
+      } catch (error) {
+        console.warn("No se pudo leer cache local del reporte:", error);
+      }
+
+      backgroundRunIdRef.current += 1;
+      setIsPrefetchingOld(false);
+      setHasMoreData(false);
+      setLastFetchedCursor(null);
       setIsLoadingData(true);
       try {
-        const rows = await fetchContactsData(normalizedStart, normalizedEnd);
-        const enrichedRows = Array.isArray(rows)
-          ? rows.map(buildClienteDerivedData)
+        const result = await fetchContactsData({
+          startDate: normalizedStart,
+          endDate: normalizedEnd,
+          limit: INITIAL_LIMIT,
+          withCursor: true,
+        });
+
+        const rows = Array.isArray(result?.rows)
+          ? result.rows
+          : Array.isArray(result)
+          ? result
           : [];
+        const enrichedRows = rows.map(buildClienteDerivedData);
+
         setFullClientesData(enrichedRows);
         setPage(0);
+        setLastFetchedCursor(result?.lastDoc || null);
+        const moreAvailable = Boolean(result?.lastDoc) && rows.length >= INITIAL_LIMIT;
+        setHasMoreData(moreAvailable);
         lastFetchParamsRef.current = { start: normalizedStart, end: normalizedEnd };
+
+        try {
+          const serialized = rows.map(
+            ({
+              _timestampDate,
+              _timestampLabel,
+              _searchableText,
+              _resolvedMotivo,
+              _normalizedMotivo,
+              _motivoOptionValue,
+              _estadoNormalized,
+              _tipoPrestamo,
+              _tipoPrestamoLabel,
+              ...rest
+            }) => rest
+          );
+          localStorage.setItem(cacheKey, JSON.stringify({ rows: serialized, savedAt: Date.now() }));
+        } catch (error) {
+          console.warn("No se pudo guardar cache local del reporte:", error);
+        }
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
         setIsLoadingData(false);
       }
     },
-    [fetchContactsData, setFullClientesData, setIsLoadingData, setPage]
+    [setFullClientesData, setIsLoadingData, setPage, fetchContactsData, setCurrentCacheKey]
   );
 
   useEffect(() => {
@@ -185,8 +321,121 @@ export default function Admin() {
       return;
     }
 
-    loadClientes();
-  }, [loading, user, navigate, loadClientes]);
+    let cancelled = false;
+
+    const run = async () => {
+      await purgeOldRecords();
+      if (cancelled) {
+        return;
+      }
+      await loadClientes({ force: true });
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, user, navigate, loadClientes, purgeOldRecords]);
+
+  useEffect(() => {
+    if (!hasMoreData || isPrefetchingOld || !lastFetchedCursor) {
+      return;
+    }
+
+    let isCancelled = false;
+    const runId = backgroundRunIdRef.current;
+
+    const fetchInBackground = async () => {
+      setIsPrefetchingOld(true);
+      try {
+        let cursor = lastFetchedCursor;
+        let more = true;
+
+        while (more && !isCancelled) {
+          if (runId !== backgroundRunIdRef.current) {
+            break;
+          }
+
+          const result = await fetchContactsData({
+            startDate: lastFetchParamsRef.current.start,
+            endDate: lastFetchParamsRef.current.end,
+            limit: BACKGROUND_LIMIT,
+            startAfter: cursor,
+            withCursor: true,
+          });
+
+          const rows = Array.isArray(result?.rows)
+            ? result.rows
+            : Array.isArray(result)
+            ? result
+            : [];
+
+          if (!rows.length) {
+            more = false;
+            break;
+          }
+
+          if (runId !== backgroundRunIdRef.current) {
+            break;
+          }
+
+          const enrichedRows = rows.map(buildClienteDerivedData);
+          setFullClientesData((prev) => mergeClientesById(prev, enrichedRows));
+
+          cursor = result?.lastDoc || null;
+          more = Boolean(cursor) && rows.length >= BACKGROUND_LIMIT;
+          setLastFetchedCursor(cursor);
+          setHasMoreData(more);
+        }
+
+        if (!isCancelled) {
+          setHasMoreData(false);
+          setLastFetchedCursor(cursor);
+        }
+      } catch (error) {
+        console.error("Error fetching additional data:", error);
+      } finally {
+        if (!isCancelled) {
+          setIsPrefetchingOld(false);
+        }
+      }
+    };
+
+    fetchInBackground();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [hasMoreData, isPrefetchingOld, lastFetchedCursor]);
+
+  useEffect(() => {
+    if (!currentCacheKey) {
+      return;
+    }
+    if (isLoadingData || isPrefetchingOld) {
+      return;
+    }
+    try {
+      const serialized = fullClientesData.map(
+        ({
+          _timestampDate,
+          _timestampLabel,
+          _searchableText,
+          _resolvedMotivo,
+          _normalizedMotivo,
+          _motivoOptionValue,
+          _estadoNormalized,
+          _tipoPrestamo,
+          _tipoPrestamoLabel,
+          ...rest
+        }) => rest
+      );
+      localStorage.setItem(currentCacheKey, JSON.stringify({ rows: serialized, savedAt: Date.now() }));
+    } catch (error) {
+      console.warn("No se pudo actualizar cache local del reporte:", error);
+    }
+  }, [fullClientesData, currentCacheKey, isLoadingData, isPrefetchingOld]);
 
   const toExport = () => {
     let header = [
@@ -389,7 +638,7 @@ export default function Admin() {
       });
     }
 
-    const normalizedSearch = normalizeText(busquedaGeneral);
+    const normalizedSearch = normalizeText(debouncedBusqueda);
     if (normalizedSearch) {
       filtered = filtered.filter((cliente) => {
         const searchableText =
@@ -425,7 +674,7 @@ export default function Admin() {
     estadoFiltro,
     motivoFiltro,
     columnFilters,
-    busquedaGeneral,
+    debouncedBusqueda,
     sortMethod,
     appliedStartDate,
     appliedEndDate,
@@ -690,6 +939,24 @@ export default function Admin() {
             </button>
           )}
         </div>
+        <div className="search__hint">
+          Buscando en los datos cargados; se ampliará al llegar más registros de fondo.
+        </div>
+        {isPurgingOld && (
+          <div className="background-loading-hint">
+            Eliminando registros anteriores a 3 meses antes de cargar datos…
+          </div>
+        )}
+        {isPrefetchingOld && (
+          <div className="background-loading-hint">
+            Cargando registros antiguos en segundo plano...
+          </div>
+        )}
+        {(isPrefetchingOld || isLoadingData) && (
+          <div className="background-loading-hint" style={{ marginTop: "0.5rem" }}>
+            La base de datos se está actualizando; los datos pueden cambiar mientras se completa la carga.
+          </div>
+        )}
         <div className="table__container">
           <div
             className="table__page-size-control"

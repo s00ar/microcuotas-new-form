@@ -71,6 +71,10 @@ function ClientForm() {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
+    if (isSubmitting) {
+      return;
+    }
+
     if (
       !nombre ||
       !apellido ||
@@ -267,7 +271,7 @@ function ClientForm() {
         </div>
         <button className="form__btn" type="submit" disabled={isSubmitting}>
           {showSpinner ? (
-            <span className="spinner">Procesando...</span>
+            <span className="spinner">Enviando...</span>
           ) : (
             "Enviar"
           )}

@@ -18,7 +18,10 @@ import {
   orderBy,
   doc,
   getDoc,
-  setDoc
+  setDoc,
+  limit as firestoreLimit,
+  writeBatch,
+  startAfter,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, getStorage } from "firebase/storage";
 
@@ -121,29 +124,86 @@ const isReport = async (uid) => {
   }
 };  
 
-const fetchContactsData = async (startDate, endDate) => {
-  let q = collection(db, "clientes");
-  
-  if (startDate && !endDate) {
-    q = query(q, orderBy('timestamp', 'desc'), where('timestamp', '>=', new Date(startDate)));
-  } else if (!startDate && endDate) {
-    q = query(q, orderBy('timestamp', 'desc'), where('timestamp', '<=', new Date(endDate)));
-  } else if (startDate && endDate) {
-    q = query(q, orderBy('timestamp', 'desc'), 
-      where('timestamp', '>', new Date(startDate)),
-      where('timestamp', '<', new Date(endDate))
-    );
-  } else {
-    q = query(q, orderBy('timestamp', 'desc'));
+const fetchContactsData = async (startDate, endDate, extraOptions = {}) => {
+  // Backwards compatible signature: fetchContactsData(startDate, endDate)
+  // New signature: fetchContactsData({ startDate, endDate, limit, startAfter, withCursor })
+  const resolvedOptions =
+    typeof startDate === "object" && startDate !== null && !Array.isArray(startDate)
+      ? { ...startDate }
+      : { startDate, endDate, ...extraOptions };
+
+  const {
+    startDate: start,
+    endDate: end,
+    limit: limitSize,
+    startAfter: startAfterDoc,
+    withCursor = false,
+  } = resolvedOptions;
+
+  const constraints = [orderBy("timestamp", "desc")];
+
+  if (start && !end) {
+    constraints.push(where("timestamp", ">=", new Date(start)));
+  } else if (!start && end) {
+    constraints.push(where("timestamp", "<=", new Date(end)));
+  } else if (start && end) {
+    constraints.push(where("timestamp", ">", new Date(start)));
+    constraints.push(where("timestamp", "<", new Date(end)));
   }
 
+  if (limitSize) {
+    if (startAfterDoc) {
+      constraints.push(startAfter(startAfterDoc));
+    }
+    constraints.push(firestoreLimit(limitSize));
+  }
+
+  const q = query(collection(db, "clientes"), ...constraints);
+
   const querySnapshot = await getDocs(q);
-  let data = [];
-  querySnapshot.forEach((docSnap) => {
-    data.push({ id: docSnap.id, ...docSnap.data() });
-  });
-  // console.log({ data });
+  const data = querySnapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+
+  if (withCursor) {
+    const lastDoc = querySnapshot.docs.length
+      ? querySnapshot.docs[querySnapshot.docs.length - 1]
+      : null;
+    return { rows: data, lastDoc };
+  }
+
   return data;
+};
+
+const deleteOldClientesBefore = async (cutoffDate, { batchSize = 500 } = {}) => {
+  if (!cutoffDate) {
+    return { deleted: 0, hasMore: false };
+  }
+
+  const cutoff = cutoffDate instanceof Date ? cutoffDate : new Date(cutoffDate);
+  if (Number.isNaN(cutoff.getTime())) {
+    return { deleted: 0, hasMore: false };
+  }
+
+  const constraints = [
+    orderBy("timestamp", "asc"),
+    where("timestamp", "<", cutoff),
+    firestoreLimit(batchSize),
+  ];
+
+  const q = query(collection(db, "clientes"), ...constraints);
+  const snapshot = await getDocs(q);
+  if (snapshot.empty) {
+    return { deleted: 0, hasMore: false };
+  }
+
+  const batch = writeBatch(db);
+  snapshot.docs.forEach((docSnap) => {
+    batch.delete(doc(db, "clientes", docSnap.id));
+  });
+  await batch.commit();
+
+  const deleted = snapshot.size;
+  const hasMore = deleted >= batchSize;
+  return { deleted, hasMore };
 };
 
 const SIMULATION_PARAMS_PATH = ["config", "simulationParams"];
@@ -189,6 +249,7 @@ export {
   isAdmin,
   isReport,
   fetchContactsData,
+  deleteOldClientesBefore,
   getSimulationParams,
   updateSimulationParams
 };

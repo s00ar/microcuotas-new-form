@@ -82,11 +82,15 @@ function Paso2() {
           </div>
           <div className="verification__container__panel_right">
             <div className="spacer">
-            <h2 htmlFor="birthdate">Fecha de nacimiento:</h2>
+            <h2>Fecha de nacimiento:</h2>
+            <label className="sr-only" htmlFor="birthdate">
+              Fecha de nacimiento
+            </label>
             <input
               className="verification__input"
               id="birthdate"
               type="date"
+              aria-label="Fecha de nacimiento"
               value={birthdate}
               onChange={handleBirthdateChange}
               />

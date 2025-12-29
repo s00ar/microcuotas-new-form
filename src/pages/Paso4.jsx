@@ -304,6 +304,7 @@ function Paso4() {
   const [rejectionPrompt, setRejectionPrompt] = useState(null);
   const [contactPhone, setContactPhone] = useState("");
   const [contactEmail, setContactEmail] = useState("");
+  const [contactTouched, setContactTouched] = useState(false);
   const [isContactValidating, setIsContactValidating] = useState(false);
   const rejectionPersistedRef = useRef(false);
   const rejectionLockRef = useRef(0);
@@ -583,6 +584,7 @@ function Paso4() {
   };
 
   const handleRejectionContactSubmit = async () => {
+    setContactTouched(true);
     if (isContactValidating || !isValidContactPhone(contactPhone) || !isValidContactEmail(contactEmail)) {
       return;
     }
@@ -797,13 +799,19 @@ function Paso4() {
                   type="tel"
                   className="verification__input"
                   value={contactPhone}
-                  onChange={(event) => setContactPhone(event.target.value)}
+                  onChange={(event) => {
+                    setContactPhone(event.target.value);
+                    setContactTouched(true);
+                  }}
+                  onBlur={() => setContactTouched(true)}
+                  required
+                  aria-required="true"
                   placeholder="Ej: 11 2345 6789"
                   style={{ marginBottom: "12px" }}
                   />
-                {contactPhone && !isValidContactPhone(contactPhone) && (
+                {contactTouched && !isValidContactPhone(contactPhone) && (
                   <p style={{ color: "#b00020", marginTop: "-6px", marginBottom: "10px", fontSize: "0.9rem" }}>
-                    El celular debe tener exactamente 10 numeros.
+                    El celular es obligatorio y debe tener exactamente 10 numeros.
                   </p>
                 )}
                 <label style={{ display: "block", fontWeight: 600, marginBottom: "4px" }}>Correo:</label>

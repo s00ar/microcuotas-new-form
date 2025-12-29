@@ -7,6 +7,7 @@ import Report from "../Report";
 import { GlobalLoadingProvider } from "../../components/GlobalLoadingProvider";
 
 const mockFetchContactsData = jest.fn();
+const mockDeleteOldClientesBefore = jest.fn();
 const mockDeleteDoc = jest.fn();
 const mockUseAuthState = jest.fn();
 
@@ -15,6 +16,7 @@ jest.mock("../../firebase", () => ({
   db: {},
   deleteDoc: (...args) => mockDeleteDoc(...args),
   fetchContactsData: (...args) => mockFetchContactsData(...args),
+  deleteOldClientesBefore: (...args) => mockDeleteOldClientesBefore(...args),
   logout: jest.fn(),
 }));
 
@@ -48,16 +50,25 @@ describe("Report page", () => {
   beforeEach(() => {
     jest.useRealTimers();
     mockUseAuthState.mockReturnValue([{ uid: "demo-user" }, false]);
-    mockFetchContactsData.mockResolvedValue(buildRows(12));
+    mockDeleteOldClientesBefore.mockResolvedValue({ deleted: 0, hasMore: false });
+    mockFetchContactsData.mockResolvedValue({ rows: buildRows(12), lastDoc: null });
     mockDeleteDoc.mockResolvedValue();
+    localStorage.clear();
   });
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  it("renders fetched rows and updates pagination when the page size changes", async () => {
+  it("purges old records before fetching data and updates pagination when the page size changes", async () => {
     renderReport();
+
+    await waitFor(() => expect(mockDeleteOldClientesBefore).toHaveBeenCalled());
+    await waitFor(() => expect(mockFetchContactsData).toHaveBeenCalled());
+
+    const purgeCallOrder = mockDeleteOldClientesBefore.mock.invocationCallOrder[0];
+    const fetchCallOrder = mockFetchContactsData.mock.invocationCallOrder[0];
+    expect(purgeCallOrder).toBeLessThan(fetchCallOrder);
 
     const table = await screen.findByRole("table");
     await within(table).findByRole("cell", { name: "Persona 1" });
@@ -76,9 +87,18 @@ describe("Report page", () => {
     expect(paginatedRows).toHaveLength(10);
   });
 
-  it("shows and hides the global spinner around the initial fetch", async () => {
+  it("shows and hides the global spinner around purge and initial fetch", async () => {
     jest.useFakeTimers();
     let resolveFetch;
+    let resolvePurge;
+
+    mockDeleteOldClientesBefore.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvePurge = resolve;
+        })
+    );
+
     mockFetchContactsData.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -88,7 +108,14 @@ describe("Report page", () => {
 
     renderReport();
 
-    expect(screen.queryByRole("status")).toBeNull();
+    await act(async () => {
+      jest.advanceTimersByTime(450);
+    });
+    expect(await screen.findByRole("status")).toBeInTheDocument();
+
+    act(() => {
+      resolvePurge({ deleted: 0, hasMore: false });
+    });
 
     await act(async () => {
       jest.advanceTimersByTime(450);
@@ -96,7 +123,7 @@ describe("Report page", () => {
     expect(screen.getByRole("status")).toBeInTheDocument();
 
     act(() => {
-      resolveFetch(buildRows(1));
+      resolveFetch({ rows: buildRows(1), lastDoc: null });
     });
 
     const table = await screen.findByRole("table");
