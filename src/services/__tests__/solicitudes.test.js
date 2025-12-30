@@ -231,6 +231,7 @@ describe("solicitudes service helpers", () => {
       telefono: "11 4000-0000",
       email: "nuevo@mail.com",
       nombreCompleto: "Demo Test",
+      cuil: "20-12345678-9",
     });
 
     expect(result.ok).toBe(false);
@@ -252,10 +253,89 @@ describe("solicitudes service helpers", () => {
       telefono: "1140000000",
       email: "demo@mail.com",
       nombreCompleto: "Demo Test",
+      cuil: "20-12345678-9",
     });
 
     expect(result.ok).toBe(false);
     expect(result.recientes).toEqual(expect.arrayContaining(["telefono", "email"]));
     expect(result.conflictos).toEqual([]);
+  });
+
+  it("bloquea contactos de tarjeta por datos duplicados", async () => {
+    getDocs
+      .mockResolvedValueOnce(buildSnapshot([])) // uso telefono
+      .mockResolvedValueOnce(buildSnapshot([])) // uso email
+      .mockResolvedValueOnce(
+        buildSnapshot([{ telefono: "1140000000", estado: "pendiente", cuil: "20123456789" }])
+      ) // telefono duplicado
+      .mockResolvedValueOnce(buildSnapshot([])) // email unico
+      .mockResolvedValueOnce(buildSnapshot([])); // cuil unico
+
+    const result = await validateTarjetaContact({
+      telefono: "1140000000",
+      email: "demo@mail.com",
+      nombreCompleto: "Demo Test",
+      cuil: "20-12345678-9",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.duplicados).toEqual(["telefono"]);
+    expect(result.recientes).toEqual([]);
+    expect(result.conflictos).toEqual([]);
+  });
+
+  it("bloquea contactos de tarjeta por CUIL duplicado", async () => {
+    const cuilRecencySpy = jest.spyOn(solicitudesModule, "isCuilRegistrable").mockResolvedValue(true);
+    getDocs
+      .mockResolvedValueOnce(buildSnapshot([])) // uso telefono
+      .mockResolvedValueOnce(buildSnapshot([])) // uso email
+      .mockResolvedValueOnce(buildSnapshot([])) // telefono unico
+      .mockResolvedValueOnce(buildSnapshot([])) // email unico
+      .mockResolvedValueOnce(buildSnapshot([{ cuil: "20123456789", estado: "pendiente" }])); // cuil duplicado
+
+    const result = await validateTarjetaContact({
+      telefono: "1140000000",
+      email: "demo@mail.com",
+      nombreCompleto: "Demo Test",
+      cuil: "20-12345678-9",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.duplicados).toEqual(["cuil"]);
+    expect(result.recientes).toEqual([]);
+    expect(result.conflictos).toEqual([]);
+
+    cuilRecencySpy.mockRestore();
+  });
+
+  it("evita guardar solicitudes con CUIL ya existente", async () => {
+    getDocs
+      .mockResolvedValueOnce(buildSnapshot([])) // telefono unico
+      .mockResolvedValueOnce(buildSnapshot([])) // email unico
+      .mockResolvedValueOnce(buildSnapshot([{ cuil: "20123456789", estado: "pendiente" }])); // cuil duplicado
+
+    await expect(
+      saveAceptada({
+        nombre: "Demo",
+        apellido: "Test",
+        cuil: "20-12345678-9",
+        telefono: "1140000000",
+        email: "demo@mail.com",
+      })
+    ).rejects.toMatchObject({ code: "duplicate_fields", fields: ["cuil"] });
+    expect(addDoc).not.toHaveBeenCalled();
+  });
+
+  it("evita guardar rechazos con CUIL duplicado", async () => {
+    getDocs.mockResolvedValueOnce(buildSnapshot([{ cuil: "20123456789", estado: "rechazada" }]));
+
+    await expect(
+      saveRechazo({
+        motivoRechazo: "mora activa",
+        motivoRechazoCodigo: "bcra_mora_activa",
+        cuil: "20-12345678-9",
+      })
+    ).rejects.toMatchObject({ code: "duplicate_fields", fields: ["cuil"] });
+    expect(addDoc).not.toHaveBeenCalled();
   });
 });

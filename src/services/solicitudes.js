@@ -33,7 +33,11 @@ export const mapReasonToResultado = (motivoCodigo) => {
 
 const clientesCollection = collection(db, "clientes");
 
-const STRICT_UNIQUE_FIELDS = ["telefono", "email"];
+const STRICT_UNIQUE_FIELDS = [
+  { name: "telefono", ignoreEstados: ["rechazada"], allowSameCuil: true },
+  { name: "email", ignoreEstados: ["rechazada"], allowSameCuil: true },
+  { name: "cuil", ignoreEstados: [], allowSameCuil: false },
+];
 const FIELDS_TO_NORMALIZE = ["cuil", "telefono", "email"];
 
 let ensureAuthPromise = null;
@@ -332,10 +336,11 @@ export const getFieldUsageDetails = async (field, value, options = {}) => {
 };
 
 export const validateTarjetaContact = async (
-  { telefono, email, nombreCompleto },
+  { telefono, email, nombreCompleto, cuil },
   windowDays = 30
 ) => {
   const referenceName = normalizeNameValue(nombreCompleto);
+  const normalizedCuil = normalizeFieldValue("cuil", cuil);
   const telefonoInfo = await getFieldUsageDetails("telefono", telefono, {
     windowDays,
     referenceName,
@@ -344,6 +349,7 @@ export const validateTarjetaContact = async (
 
   const conflicts = [];
   const recent = [];
+  const duplicates = [];
 
   if (telefonoInfo.hasNameConflict) {
     conflicts.push("telefono");
@@ -358,10 +364,36 @@ export const validateTarjetaContact = async (
     recent.push("email");
   }
 
+  const [telefonoUnico, emailUnico] = await Promise.all([
+    isFieldUnique("telefono", telefono, { ignoreEstados: [] }),
+    isFieldUnique("email", email, { ignoreEstados: [] }),
+  ]);
+
+  const [cuilUnico, cuilRegistrable] = normalizedCuil
+    ? await Promise.all([
+        isFieldUnique("cuil", normalizedCuil, { ignoreEstados: [] }),
+        isCuilRegistrable(normalizedCuil, windowDays),
+      ])
+    : [true, true];
+
+  if (!telefonoUnico) {
+    duplicates.push("telefono");
+  }
+  if (!emailUnico) {
+    duplicates.push("email");
+  }
+  if (!cuilUnico) {
+    duplicates.push("cuil");
+  }
+  if (!cuilRegistrable) {
+    recent.push("cuil");
+  }
+
   return {
-    ok: conflicts.length === 0 && recent.length === 0,
+    ok: conflicts.length === 0 && recent.length === 0 && duplicates.length === 0,
     conflictos: conflicts,
     recientes: recent,
+    duplicados: duplicates,
     telefonoInfo,
     emailInfo,
   };
@@ -369,20 +401,21 @@ export const validateTarjetaContact = async (
 
 const ensureUniqueFields = async (payload) => {
   const duplicated = [];
-  for (const field of STRICT_UNIQUE_FIELDS) {
-    if (!(field in payload)) {
+  for (const fieldRules of STRICT_UNIQUE_FIELDS) {
+    const { name, ignoreEstados = [], allowSameCuil = false } = fieldRules;
+    if (!(name in payload)) {
       continue;
     }
-    const value = payload[field];
+    const value = payload[name];
     if (!value) {
       continue;
     }
-    const unique = await isFieldUnique(field, value, {
-      ignoreEstados: ["rechazada"],
-      sameCuilValue: payload.cuil ?? null,
+    const unique = await isFieldUnique(name, value, {
+      ignoreEstados,
+      sameCuilValue: allowSameCuil ? payload.cuil ?? null : null,
     });
     if (!unique) {
-      duplicated.push(field);
+      duplicated.push(name);
     }
   }
   if (duplicated.length) {
@@ -443,7 +476,7 @@ export const saveRechazo = async ({
       resultadoEvaluacionDescripcion: resultado?.descripcion ?? null,
       ...rest,
     },
-    { skipUniqueValidation: true }
+    { skipUniqueValidation: false }
   );
 };
 

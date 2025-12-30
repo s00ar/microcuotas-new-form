@@ -92,7 +92,7 @@ const rejectionMessages = {
   historicalMora:
     "Lamentablemente no podemos continuar porque segun el BCRA se registran atrasos recientes. Si podemos ofrecerle un prestamo personal a traves de su tarjeta de crédito, en caso que usted tenga disponible o cupo en su tarjeta. Ingrese a continuacion, si le interesa, su numero de celular junto con su correo electronico y un representante de MicroCuotas se pondra en contacto con usted.",
   missingData:
-    "No pudimos validar la informacion del BCRA. Reintente la consulta o verifique el CUIL/CUIT. Ante cualquier duda llame al teléfono de linea 11 4268 1704 de L a V de 9.30 a 17.30 hs y Sabados de 9.30 a 13 hs.",
+    "No pudimos validar la informacion del BCRA. Reintente la consulta o verifique el CUIL/CUIT. Ante cualquier duda llame al telefono de linea 11 4268 1704 de L a V de 9.30 a 17.30 hs y Sabados de 9.30 a 13 hs.",
   noProducts:
     "No pudimos continuar porque el BCRA no reporta productos historicos a tu nombre. Verifica el CUIL/CUIT o comunicate con nosotros para seguir la gestion.",
 };
@@ -306,6 +306,10 @@ function Paso4() {
   const [contactEmail, setContactEmail] = useState("");
   const [contactTouched, setContactTouched] = useState(false);
   const [isContactValidating, setIsContactValidating] = useState(false);
+  const isTestCuil = useMemo(
+    () => Object.values(BCRA_TEST_CUILS || {}).map(String).includes(String(cuil || "")),
+    [cuil]
+  );
   const rejectionPersistedRef = useRef(false);
   const rejectionLockRef = useRef(0);
   useGlobalLoadingEffect(isLoading);
@@ -591,31 +595,50 @@ function Paso4() {
     setIsContactValidating(true);
     try {
       const validation = await validateTarjetaContact({
-        teléfono: contactPhoneDigits,
+        telefono: contactPhoneDigits,
         email: contactEmail,
         nombreCompleto: finalName,
+        cuil,
       });
 
       if (!validation.ok) {
         const conflictMessages = [];
+        const capitalize = (text = "") => (text ? text.charAt(0).toUpperCase() + text.slice(1) : "");
+        const describeFields = (fields = []) => {
+          const labels = {
+            telefono: "el celular",
+            email: "el correo",
+            cuil: "el CUIL/CUIT",
+          };
+          const mapped = fields.map((field) => labels[field] || field);
+          if (!mapped.length) {
+            return "";
+          }
+          if (mapped.length === 1) {
+            return capitalize(mapped[0]);
+          }
+          if (mapped.length === 2) {
+            return `${capitalize(mapped[0])} y ${mapped[1]}`;
+          }
+          const last = mapped[mapped.length - 1];
+          const initial = mapped.slice(0, -1).join(", ");
+          return `${capitalize(initial)} y ${last}`;
+        };
+
+        if (validation.duplicados?.length) {
+          const fieldsText = describeFields(validation.duplicados);
+          conflictMessages.push(
+            `${fieldsText} ya fueron usados en otra solicitud. Ingresa otros datos de contacto.`
+          );
+        }
         if (validation.conflictos.length) {
-          const fieldsText =
-            validation.conflictos.length === 2
-              ? "El celular y el correo"
-              : validation.conflictos[0] === "teléfono"
-              ? "El celular"
-              : "El correo";
+          const fieldsText = describeFields(validation.conflictos);
           conflictMessages.push(
             `${fieldsText} ya figura asociado a otra persona. Ingresalo nuevamente o usa otro dato de contacto.`
           );
         }
         if (validation.recientes.length) {
-          const fieldsText =
-            validation.recientes.length === 2
-              ? "El celular y el correo"
-              : validation.recientes[0] === "teléfono"
-              ? "El celular"
-              : "El correo";
+          const fieldsText = describeFields(validation.recientes);
           conflictMessages.push(
             `${fieldsText} fueron cargados en los ultimos 30 dias. Ingresa datos distintos para continuar.`
           );
@@ -627,7 +650,7 @@ function Paso4() {
 
       await persistCurrentRejection(
         {
-          teléfono: contactPhoneDigits || null,
+          telefono: contactPhoneDigits || null,
           email: contactEmail.trim() || null,
           tipoPrestamo: "tarjeta",
         },
@@ -645,6 +668,17 @@ function Paso4() {
 
   const handleConfirm = async () => {
     const evaluation = evaluateBcraEligibility(bcraData, bcraHistoricalData, rejectionMessages);
+
+    // CUIL de prueba: forzar flujo de contacto para tarjeta (celular y correo)
+    if (isTestCuil) {
+      openRejectionPrompt({
+        ok: false,
+        message: rejectionMessages.tooManyActive,
+        reason: "bcra_demasiados_activos",
+      });
+      return;
+    }
+
     if (!evaluation.ok) {
       openRejectionPrompt(evaluation);
       if (!shouldCollectContact(evaluation.reason)) {
@@ -852,3 +886,4 @@ function Paso4() {
 }
 
 export default Paso4;
+

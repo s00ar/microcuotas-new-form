@@ -112,7 +112,7 @@ function Login() {
           )}
         </div>
       </div>
-      <p className="version-text">v4.0.4</p>
+      <p className="version-text">v4.0.6</p>
     </div>
   );
 }
