@@ -36,6 +36,11 @@ return (
                         Reportes
                         </button>
                     </Link>
+                    <Link to="/logs-bcra">
+                        <button>
+                        Logs BCRA
+                        </button>
+                    </Link>
                 </div>
                     <Link to="/options">
                         <button className='header__button'>

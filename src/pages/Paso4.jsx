@@ -49,12 +49,17 @@ const extractName = (payload) => {
   if (typeof payload === "string") {
     return payload;
   }
-  if (payload.denominacion) {
-    return payload.denominacion;
+
+  const direct =
+    payload.denominacion ||
+    payload.razonSocial ||
+    payload.razon_social ||
+    payload.nombreCompleto ||
+    payload.nombre_completo;
+  if (direct) {
+    return direct;
   }
-  if (payload.results?.denominacion) {
-    return payload.results.denominacion;
-  }
+
   if (payload.nombre && payload.apellido) {
     return `${payload.nombre} ${payload.apellido}`.trim();
   }
@@ -64,15 +69,30 @@ const extractName = (payload) => {
   if (payload.apellido) {
     return payload.apellido;
   }
-  if (Array.isArray(payload.personas) && payload.personas.length > 0) {
-    return extractName(payload.personas[0]);
+
+  if (payload.results?.denominacion) {
+    return payload.results.denominacion;
   }
-  if (payload.persona) {
-    return extractName(payload.persona);
+
+  const nestedCandidates = [
+    payload.results,
+    payload.result,
+    payload.resultado,
+    payload.persona,
+    Array.isArray(payload.personas) ? payload.personas[0] : null,
+    payload.cliente,
+    payload.deudor,
+    payload.sujeto,
+    payload.data,
+  ];
+
+  for (const candidate of nestedCandidates) {
+    const nestedName = extractName(candidate);
+    if (nestedName) {
+      return nestedName;
+    }
   }
-  if (payload.resultado) {
-    return extractName(payload.resultado);
-  }
+
   return "";
 };
 
@@ -96,6 +116,8 @@ const rejectionMessages = {
   noProducts:
     "No pudimos continuar porque el BCRA no reporta productos historicos a tu nombre. Verifica el CUIL/CUIT o comunicate con nosotros para seguir la gestion.",
 };
+
+const BCRA_MISSING_DATA_SHORT = "No pudimos validar la informacion del BCRA";
 
 const rejectionContactReasons = new Set(["bcra_mora_activa", "bcra_demasiados_activos", "bcra_mora_historica"]);
 
@@ -141,24 +163,159 @@ const normalizeSituacionValue = (value) => {
   return 0;
 };
 
+const normalizeMontoValue = (value) => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === "string") {
+    const normalized = value.replace(",", ".").trim();
+    const parsed = Number(normalized);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  if (typeof value === "object") {
+    if ("monto" in value) {
+      return normalizeMontoValue(value.monto);
+    }
+    if ("valor" in value) {
+      return normalizeMontoValue(value.valor);
+    }
+    if ("value" in value) {
+      return normalizeMontoValue(value.value);
+    }
+  }
+  return null;
+};
+
 const normalizeEntities = (period) => (Array.isArray(period?.entidades) ? period.entidades.filter(Boolean) : []);
+const uniqueActiveEntities = (entities = []) => {
+  const uniqueMap = new Map();
+  entities.forEach((entity) => {
+    if (!entity) {
+      return;
+    }
+    const rawName = typeof entity.entidad === "string" ? entity.entidad.trim() : "";
+    const key = rawName ? rawName.toLowerCase() : JSON.stringify(entity);
+    if (!uniqueMap.has(key)) {
+      uniqueMap.set(key, entity);
+    }
+  });
+  return Array.from(uniqueMap.values());
+};
+
+	const BCRA_PROXY_URL = process.env.REACT_APP_BCRA_PROXY_URL || "/api/bcra";
+	
+	const LOG_MAX_BODY_CHARS = 400;
+	// Evitamos que el usuario quede "cargando" varios minutos si el proxy del BCRA se cuelga.
+	// Con 20s + 1 reintento el peor caso ronda ~40s por endpoint (y los pedimos en paralelo).
+	const LOG_TIMEOUT_MS = 20000;
+	const LOG_RETRY_MAX = 1;
+
+	const logBcraEvent = (level, message, context = {}) => {
+	  const payload = {
+	    message,
+	    ...context,
+	    timestamp: new Date().toISOString(),
+	  };
+  if (level === "error") {
+    console.error("BCRA", payload);
+  } else if (level === "warn") {
+    console.warn("BCRA", payload);
+  } else {
+    console.info("BCRA", payload);
+	  }
+	};
+	
+	const isAbortError = (error) => {
+	  if (!error) {
+	    return false;
+	  }
+	  if (error.name === "AbortError") {
+	    return true;
+	  }
+	  const message = String(error?.message || "").toLowerCase();
+	  return message.includes("signal is aborted");
+	};
+	
+	const shouldRetryBcra = (error) => {
+	  if (!error) {
+	    return false;
+	  }
+	  if (isAbortError(error)) {
+	    return true;
+	  }
+	  if (error?.status && [429, 500, 502, 503, 504].includes(error.status)) {
+	    return true;
+	  }
+	  const message = String(error?.message || "").toLowerCase();
+	  return message.includes("failed to fetch") || message.includes("networkerror");
+	};
+
+const truncateBody = (value) => {
+  if (!value) {
+    return "";
+  }
+  const asString = typeof value === "string" ? value : JSON.stringify(value);
+  if (asString.length <= LOG_MAX_BODY_CHARS) {
+    return asString;
+  }
+  return `${asString.slice(0, LOG_MAX_BODY_CHARS)}...`;
+};
+
+const buildBcraProxyUrl = (cuil, historico = false, requestId) => {
+  const params = new URLSearchParams({
+    cuil: String(cuil || ""),
+    historico: historico ? "1" : "0",
+  });
+  if (requestId) {
+    params.set("requestId", String(requestId));
+  }
+  return `${BCRA_PROXY_URL}?${params.toString()}`;
+};
+
+const buildRequestId = () => {
+  if (typeof crypto !== "undefined" && crypto?.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+};
 
 export const evaluateBcraEligibility = (bcraData, bcraHistoricalData, messages = rejectionMessages) => {
-  const effectiveHistorical = bcraHistoricalData || bcraData;
   if (!bcraData && !bcraHistoricalData) {
     return { ok: false, message: messages.missingData, reason: "bcra_sin_datos" };
   }
 
-  const periodos = Array.isArray(bcraData?.periodos) ? [...bcraData.periodos] : [];
+  // Para aprobar es obligatorio contar con el endpoint historico (evita aprobar sin validar historial).
+  if (!bcraHistoricalData) {
+    return { ok: false, message: messages.missingData, reason: "bcra_sin_datos" };
+  }
+
+  const activeSource =
+    bcraData && Array.isArray(bcraData?.periodos) && bcraData.periodos.length ? bcraData : bcraHistoricalData;
+
+  const periodos = Array.isArray(activeSource?.periodos) ? [...activeSource.periodos] : [];
   periodos.sort((a, b) => normalizePeriodValue(b?.periodo) - normalizePeriodValue(a?.periodo));
   const [activePeriod] = periodos;
   const activeEntities = activePeriod ? normalizeEntities(activePeriod) : [];
+  const normalizedActiveEntities = uniqueActiveEntities(activeEntities).filter((entity) => {
+    const situacion = normalizeSituacionValue(entity?.situacion);
+    if (situacion <= 0) {
+      return false;
+    }
+    const monto = normalizeMontoValue(entity?.monto);
+    if (monto === null) {
+      return true;
+    }
+    return monto > 0;
+  });
 
-  if (activeEntities.length >= 5) {
+  if (normalizedActiveEntities.length >= 5) {
     return { ok: false, message: messages.tooManyActive, reason: "bcra_demasiados_activos" };
   }
 
-  const hasActiveMorosos = activeEntities.some((entity) => {
+  const hasActiveMorosos = normalizedActiveEntities.some((entity) => {
     const situacion = normalizeSituacionValue(entity?.situacion);
     return situacion >= 2;
   });
@@ -166,10 +323,10 @@ export const evaluateBcraEligibility = (bcraData, bcraHistoricalData, messages =
     return { ok: false, message: messages.activeMora, reason: "bcra_mora_activa" };
   }
 
-  const historicalPeriods = Array.isArray(effectiveHistorical?.periodos) ? effectiveHistorical.periodos : [];
+  const historicalPeriods = Array.isArray(bcraHistoricalData?.periodos) ? bcraHistoricalData.periodos : [];
   const historicalEntities = historicalPeriods.flatMap((period) => normalizeEntities(period));
   if (!historicalEntities.length && !activeEntities.length) {
-    console.warn("Paso4.evaluateBcraEligibility sin historicos en BCRA", effectiveHistorical);
+    console.warn("Paso4.evaluateBcraEligibility sin historicos en BCRA", bcraHistoricalData);
     return { ok: false, message: messages.noProducts, reason: "bcra_sin_productos" };
   }
 
@@ -299,9 +456,14 @@ function Paso4() {
   const [isLoading, setIsLoading] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const [manualName, setManualName] = useState("");
+  const [allowManualName, setAllowManualName] = useState(false);
   const [bcraData, setBcraData] = useState(null);
   const [bcraHistoricalData, setBcraHistoricalData] = useState(null);
+  const [bcraRequestId, setBcraRequestId] = useState(null);
+  const [bcraDeudasNoVerificadas, setBcraDeudasNoVerificadas] = useState(false);
+  const [bcraHistoricoNoVerificado, setBcraHistoricoNoVerificado] = useState(false);
   const [rejectionPrompt, setRejectionPrompt] = useState(null);
+  const [isConfirming, setIsConfirming] = useState(false);
   const [contactPhone, setContactPhone] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactTouched, setContactTouched] = useState(false);
@@ -311,6 +473,8 @@ function Paso4() {
     [cuil]
   );
   const rejectionPersistedRef = useRef(false);
+  const lastRejectionKeyRef = useRef(null);
+  const confirmLockRef = useRef(false);
   const rejectionLockRef = useRef(0);
   useGlobalLoadingEffect(isLoading);
 
@@ -326,59 +490,119 @@ function Paso4() {
   }, [personName]);
 
   useEffect(() => {
-    if (!cuil) {
-      navigate("/paso3", { replace: true });
+    if (!cuil || cuotas === undefined || monto === undefined || !birthdate) {
+      navigate("/paso1", { replace: true });
     }
-  }, [cuil, navigate]);
+  }, [cuil, cuotas, monto, birthdate, navigate]);
 
-  useEffect(() => {
-    if (!cuil) {
-      return;
-    }
-    let isMounted = true;
+	  useEffect(() => {
+	    if (!cuil) {
+	      return;
+	    }
+	    let isMounted = true;
+	    const activeControllers = new Set();
 
-    const requestBcraPayload = async (url) => {
-      const response = await fetch(url, {
-        headers: {
-          Accept: "application/json",
-          "Cache-Control": "no-cache",
-        },
-        cache: "no-store",
-      });
-      const bodyText = await response.text();
-      let payload = null;
-      try {
-        payload = bodyText ? JSON.parse(bodyText) : null;
-      } catch (jsonErr) {
-        payload = bodyText;
-      }
-      if (!response.ok) {
-        const err = new Error(`BCRA status ${response.status}`);
-        err.status = response.status;
-        err.payload = payload;
-        throw err;
-      }
-      const apiStatus =
-        typeof payload === "object" && payload !== null && "status" in payload
-          ? Number(payload.status)
-          : null;
-      if (apiStatus && apiStatus !== 200) {
-        const err = new Error(`BCRA status ${apiStatus}`);
-        err.status = apiStatus;
-        err.payload = payload;
-        throw err;
-      }
-      return typeof payload === "object" && payload !== null && "results" in payload
-        ? payload.results
-        : payload;
-    };
+	    const requestBcraPayload = async (url, requestIdForLog) => {
+	      let lastError = null;
+	      for (let attempt = 0; attempt <= LOG_RETRY_MAX; attempt++) {
+	        const controller = new AbortController();
+	        activeControllers.add(controller);
+	        const timeoutId = setTimeout(() => controller.abort(), LOG_TIMEOUT_MS);
+	        const startedAt = Date.now();
+	        try {
+	          const response = await fetch(url, {
+	            headers: {
+              Accept: "application/json",
+              "Cache-Control": "no-cache",
+            },
+            cache: "no-store",
+            signal: controller.signal,
+          });
+          const contentType = response.headers.get("content-type") || "";
+          const bodyText = await response.text();
+          let payload = null;
+          try {
+            payload = bodyText ? JSON.parse(bodyText) : null;
+          } catch (jsonErr) {
+            payload = bodyText;
+          }
+
+          if (!response.ok) {
+            const err = new Error(`BCRA status ${response.status}`);
+            err.status = response.status;
+            err.payload = payload;
+            err.contentType = contentType;
+            throw err;
+          }
+
+          const apiStatus =
+            typeof payload === "object" && payload !== null && "status" in payload
+              ? Number(payload.status)
+              : null;
+          if (apiStatus && apiStatus !== 200) {
+            const err = new Error(`BCRA status ${apiStatus}`);
+            err.status = apiStatus;
+            err.payload = payload;
+            err.contentType = contentType;
+            throw err;
+          }
+
+          if (payload && typeof payload === "string" && !contentType.includes("json")) {
+            const err = new Error("BCRA invalid payload (non-JSON)");
+            err.status = response.status;
+            err.payload = payload;
+            err.contentType = contentType;
+            throw err;
+          }
+
+          const elapsedMs = Date.now() - startedAt;
+          logBcraEvent("info", "BCRA response ok", {
+            url,
+            requestId: requestIdForLog,
+            status: response.status,
+            elapsedMs,
+            contentType,
+          });
+
+          return typeof payload === "object" && payload !== null && "results" in payload
+            ? payload.results
+            : payload;
+        } catch (err) {
+          const elapsedMs = Date.now() - startedAt;
+          lastError = err;
+          logBcraEvent("warn", "BCRA request failed", {
+            url,
+            requestId: requestIdForLog,
+            attempt,
+            elapsedMs,
+            status: err?.status ?? null,
+            contentType: err?.contentType ?? null,
+            errorMessage: err?.message,
+            payloadSnippet: truncateBody(err?.payload),
+          });
+          if (!shouldRetryBcra(err) || attempt >= LOG_RETRY_MAX) {
+            throw err;
+          }
+	          await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)));
+	        } finally {
+	          clearTimeout(timeoutId);
+	          activeControllers.delete(controller);
+	        }
+	      }
+	      throw lastError || new Error("BCRA request failed");
+	    };
 
     const fetchData = async () => {
+      const requestId = buildRequestId();
+      setBcraRequestId(requestId);
       setIsLoading(true);
       setError("");
       setBcraData(null);
       setBcraHistoricalData(null);
       setPersonName("");
+      setAllowManualName(false);
+      setBcraDeudasNoVerificadas(false);
+      setBcraHistoricoNoVerificado(false);
 
       try {
         const mockScenario = MOCK_BCRA_RESPONSES[cuil];
@@ -415,33 +639,70 @@ function Paso4() {
           return;
         }
 
-        const endpointActual = `https://api.bcra.gob.ar/CentralDeDeudores/v1.0/Deudas/${cuil}`;
-        const endpointHistorico = `https://api.bcra.gob.ar/CentralDeDeudores/v1.0/Deudas/Historicas/${cuil}`;
+	        const endpointActual = buildBcraProxyUrl(cuil, false, requestId);
+	        const endpointHistorico = buildBcraProxyUrl(cuil, true, requestId);
 
-        let normalizedResults = null;
-        let historicalResults = null;
-        let actualError = null;
+	        let normalizedResults = null;
+	        let historicalResults = null;
+	        let actualError = null;
+	        let historicalError = null;
+	
+	        const [actualSettled, historicoSettled] = await Promise.allSettled([
+	          requestBcraPayload(endpointActual, requestId),
+	          requestBcraPayload(endpointHistorico, requestId),
+	        ]);
+	
+	        if (actualSettled.status === "fulfilled") {
+	          normalizedResults = actualSettled.value;
+	        } else {
+	          actualError = actualSettled.reason;
+            if (isMounted) {
+              setBcraDeudasNoVerificadas(true);
+            }
+	          logBcraEvent("warn", "BCRA actual fallo, continuo con historico", {
+	            requestId,
+	            status: actualError?.status ?? null,
+	            errorMessage: actualError?.message,
+	            payloadSnippet: truncateBody(actualError?.payload),
+	          });
+	          normalizedResults = null;
+	        }
+	
+	        if (historicoSettled.status === "fulfilled") {
+	          historicalResults = historicoSettled.value;
+	        } else {
+	          historicalError = historicoSettled.reason;
+            if (isMounted) {
+              setBcraHistoricoNoVerificado(true);
+            }
+	          logBcraEvent("warn", "BCRA historico fallo", {
+	            requestId,
+	            status: historicalError?.status ?? null,
+	            errorMessage: historicalError?.message,
+	            payloadSnippet: truncateBody(historicalError?.payload),
+	          });
+	          // Solo propagamos si tampoco tenemos datos del endpoint actual
+	          if (!normalizedResults) {
+	            throw historicalError;
+	          }
+	          historicalResults = null;
+	        }
 
-        try {
-          normalizedResults = await requestBcraPayload(endpointActual);
-        } catch (err) {
-          // No frenamos: seguimos con historico aunque el endpoint actual falle
-          actualError = err;
-          console.warn("Paso4 BCRA actual fallo, continuo con historico", err?.payload || err?.message);
-          normalizedResults = null;
-        }
+	        if (!normalizedResults && !historicalResults) {
+	          throw actualError || new Error("Sin datos de BCRA");
+	        }
 
-        try {
-          historicalResults = await requestBcraPayload(endpointHistorico);
-        } catch (errHistorico) {
-          // Solo propagamos si tampoco tenemos datos del endpoint actual
-          if (!normalizedResults) {
-            throw errHistorico;
+        // Si no pudimos obtener el historico, no aprobamos (evita falsos positivos por no mirar el historial).
+        if (historicalError && normalizedResults) {
+          if (isMounted) {
+            setBcraData(normalizedResults);
+            setBcraHistoricalData(null);
+            setPersonName("");
+            setManualName("");
+            setAllowManualName(true);
+            setError(rejectionMessages.missingData);
           }
-        }
-
-        if (!normalizedResults && !historicalResults) {
-          throw actualError || new Error("Sin datos de BCRA");
+          return;
         }
 
         // Si no hay datos en la consulta actual, usamos el historico como fuente principal para nombre y periodos
@@ -455,54 +716,73 @@ function Paso4() {
         if (!normalizedName) {
           if (isMounted) {
             setBcraData(primaryResults || normalizedResults || historicalResults);
-            setBcraHistoricalData(historicalResults || primaryResults || normalizedResults);
+            setBcraHistoricalData(historicalResults);
             setPersonName("");
             setManualName("");
+            setAllowManualName(true);
             setError("No pudimos obtener tu nombre desde BCRA, ingresalo manualmente para continuar.");
           }
           return;
         }
         if (isMounted) {
           setBcraData(primaryResults || normalizedResults || historicalResults);
-          setBcraHistoricalData(historicalResults || primaryResults || normalizedResults);
+          setBcraHistoricalData(historicalResults);
           setPersonName(normalizedName.toUpperCase());
+          setAllowManualName(false);
           if (actualError) {
             setError("");
           }
         }
       } catch (err) {
-        console.error("Paso4 BCRA fetch error", err);
+        logBcraEvent("error", "Paso4 BCRA fetch error", {
+          requestId,
+          status: err?.status ?? null,
+          errorMessage: err?.message,
+          payloadSnippet: truncateBody(err?.payload),
+        });
         if (isMounted) {
           setBcraData(null);
           setBcraHistoricalData(null);
           setPersonName("");
+          setAllowManualName(true);
+          setBcraDeudasNoVerificadas(true);
+          setBcraHistoricoNoVerificado(true);
           const statusInfo = err?.status ? ` (estado ${err.status})` : "";
           if (err?.mockMessage) {
             setError(`${err.mockMessage}${statusInfo}`);
-          } else {
-            const detailMessage =
-              err?.message &&
-              err.message !== `BCRA status ${err?.status ?? ""}` &&
-              err.message !== "Failed to fetch"
-                ? ` Detalle: ${err.message}`
-                : "";
-            setError(
-              `No pudimos obtener tu nombre desde BCRA${statusInfo}. Reintenta o verifica el CUIL.${detailMessage}`
-            );
-          }
-        }
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    };
+	          } else {
+	            const detailMessage =
+	              err?.message &&
+	              err.message !== `BCRA status ${err?.status ?? ""}` &&
+	              err.message !== "Failed to fetch" &&
+	              !isAbortError(err)
+	                ? ` Detalle: ${err.message}`
+	                : isAbortError(err)
+	                  ? " Detalle: Se agotó el tiempo de espera."
+	                : "";
+	            setError(`${rejectionMessages.missingData}${statusInfo}.${detailMessage}`);
+	          }
+	        }
+	      } finally {
+	        if (isMounted) {
+	          setIsLoading(false);
+	        }
+	      }
+	    };
 
-    fetchData();
-    return () => {
-      isMounted = false;
-    };
-  }, [cuil, reloadToken]);
+	    fetchData();
+	    return () => {
+	      isMounted = false;
+	      activeControllers.forEach((controller) => {
+	        try {
+	          controller.abort();
+	        } catch (abortErr) {
+	          // Ignoramos.
+	        }
+	      });
+	      activeControllers.clear();
+	    };
+	  }, [cuil, reloadToken]);
 
   const handleRetry = () => {
     if (!isLoading) {
@@ -521,20 +801,26 @@ function Paso4() {
     if (!motivo || !cuil) {
       return;
     }
+    const motivoNormalizado =
+      motivoCodigo === "bcra_sin_datos" ? BCRA_MISSING_DATA_SHORT : motivo;
+    const key = `${cuil}:${motivoCodigo || "sin_codigo"}`;
+    if (rejectionPersistedRef.current && lastRejectionKeyRef.current === key) {
+      return;
+    }
     const now = Date.now();
     if (rejectionLockRef.current && now - rejectionLockRef.current < 1500) {
       return;
     }
     rejectionLockRef.current = now;
-    try {
-      const {
-        resultadoEvaluacionCodigo: extraResultadoCodigo,
-        resultadoEvaluacionDescripcion: extraResultadoDescripcion,
-        ...restExtra
+	    try {
+	      const {
+	        resultadoEvaluacionCodigo: extraResultadoCodigo,
+	        resultadoEvaluacionDescripcion: extraResultadoDescripcion,
+	        ...restExtra
       } = extra || {};
       const resultadoMapeado = mapReasonToResultado(motivoCodigo);
       await saveRechazo({
-        motivoRechazo: motivo,
+        motivoRechazo: motivoNormalizado,
         motivoRechazoCodigo: motivoCodigo || "sin_codigo",
         cuil,
         cuotas: cuotas ?? null,
@@ -542,6 +828,7 @@ function Paso4() {
         fechaNacimiento: birthdate || null,
         nombre: finalName || null,
         nombreCompleto: finalName || null,
+        bcraRequestId: bcraRequestId || null,
         bcra: bcraData || null,
         bcraHistorico: bcraHistoricalData || null,
         origen,
@@ -550,16 +837,32 @@ function Paso4() {
           extraResultadoDescripcion ?? resultadoMapeado?.descripcion ?? null,
         ...restExtra,
       });
-    } catch (persistErr) {
-      console.error("Paso4 persistRechazo error", persistErr);
-    }
-  };
+	      rejectionPersistedRef.current = true;
+	      lastRejectionKeyRef.current = key;
+	    } catch (persistErr) {
+	      const isDuplicate =
+	        persistErr?.code === "duplicate_fields" || String(persistErr?.message || "") === "duplicate_fields";
+	      if (isDuplicate) {
+	        // QA / reintentos: si ya se guardó un rechazo reciente, no frenamos el flujo ni spameamos consola.
+	        console.warn("Paso4 persistRechazo duplicado (omitido)", {
+	          cuil,
+	          motivoCodigo: motivoCodigo || "sin_codigo",
+	          fields: persistErr?.fields ?? null,
+	        });
+	        rejectionPersistedRef.current = true;
+	        lastRejectionKeyRef.current = key;
+	        return;
+	      }
+	      console.error("Paso4 persistRechazo error", persistErr);
+	    }
+	  };
 
 
   const resetRejectionPrompt = () => {
     setRejectionPrompt(null);
     setContactPhone("");
     setContactEmail("");
+    confirmLockRef.current = false;
   };
 
   const openRejectionPrompt = (evaluation) => {
@@ -667,6 +970,59 @@ function Paso4() {
   };
 
   const handleConfirm = async () => {
+    if (confirmLockRef.current) {
+      return;
+    }
+    confirmLockRef.current = true;
+    setIsConfirming(true);
+
+    const bcraUnverified =
+      bcraDeudasNoVerificadas || bcraHistoricoNoVerificado || (!bcraData && !bcraHistoricalData);
+
+    const missingHistoricalData = bcraData && !bcraHistoricalData;
+    if (missingHistoricalData) {
+      navigate("/paso5", {
+        state: {
+          cuil,
+          cuotas,
+          monto,
+          birthdate,
+          nombre: finalName,
+          bcraData,
+          bcraHistorico: bcraHistoricalData,
+          bcraRequestId: bcraRequestId || null,
+          historialNoAprobado: true,
+          bcraDeudasNoVerificadas: Boolean(bcraDeudasNoVerificadas),
+          bcraHistoricoNoVerificado: true,
+          bcraNoVerificado: true,
+        },
+      });
+      confirmLockRef.current = false;
+      setIsConfirming(false);
+      return;
+    }
+
+    if (bcraUnverified) {
+      navigate("/paso5", {
+        state: {
+          cuil,
+          cuotas,
+          monto,
+          birthdate,
+          nombre: finalName,
+          bcraData,
+          bcraHistorico: bcraHistoricalData,
+          bcraRequestId: bcraRequestId || null,
+          bcraDeudasNoVerificadas: Boolean(bcraDeudasNoVerificadas),
+          bcraHistoricoNoVerificado: Boolean(bcraHistoricoNoVerificado),
+          bcraNoVerificado: true,
+        },
+      });
+      confirmLockRef.current = false;
+      setIsConfirming(false);
+      return;
+    }
+
     const evaluation = evaluateBcraEligibility(bcraData, bcraHistoricalData, rejectionMessages);
 
     // CUIL de prueba: forzar flujo de contacto para tarjeta (celular y correo)
@@ -676,6 +1032,8 @@ function Paso4() {
         message: rejectionMessages.tooManyActive,
         reason: "bcra_demasiados_activos",
       });
+      confirmLockRef.current = false;
+      setIsConfirming(false);
       return;
     }
 
@@ -685,29 +1043,52 @@ function Paso4() {
         await persistRejection(evaluation.message, evaluation.reason, "paso4_confirmacion", {
           evaluacion: evaluation,
         });
-        rejectionPersistedRef.current = true;
       }
+      confirmLockRef.current = false;
+      setIsConfirming(false);
       return;
     }
 
     navigate("/paso5", {
-      state: { cuil, cuotas, monto, birthdate, nombre: finalName, bcraData, bcraHistorico: bcraHistoricalData },
+      state: {
+        cuil,
+        cuotas,
+        monto,
+        birthdate,
+        nombre: finalName,
+        bcraData,
+        bcraHistorico: bcraHistoricalData,
+        bcraRequestId: bcraRequestId || null,
+      },
     });
   };
 
   const handleReject = async () => {
-    await persistRejection(
-      "El usuario indico que no es la persona validada.",
-      "identidad_no_confirmada",
-      "paso4_usuario_rechazo"
-    );
+    const evaluation = evaluateBcraEligibility(bcraData, bcraHistoricalData, rejectionMessages);
+    if (!evaluation.ok) {
+      await persistRejection(
+        evaluation.message,
+        evaluation.reason,
+        "paso4_usuario_rechazo",
+        {
+          evaluacion: evaluation,
+          identidadNoConfirmada: true,
+        }
+      );
+    } else {
+      await persistRejection(
+        "El usuario indico que no es la persona validada.",
+        "identidad_no_confirmada",
+        "paso4_usuario_rechazo"
+      );
+    }
 
     navigate("/rechazo-nombre", {
       state: { cuil, cuotas, monto, birthdate, nombre: finalName },
     });
   };
 
-  const disableConfirm = !finalName || isLoading;
+  const disableConfirm = !finalName || isLoading || isConfirming;
   const contactInfoInvalid =
     isContactValidating || !isValidContactPhone(contactPhone) || !isValidContactEmail(contactEmail);
 
@@ -762,14 +1143,18 @@ function Paso4() {
                       >
                       Reintentar
                     </button>
-                    <p className="verification__manual-caption">Ingresa tu nombre si deseas continuar:</p>
-                    <input
-                      type="text"
-                      className="verification__input verification__manual-input"
-                      value={manualName}
-                      onChange={(event) => setManualName(event.target.value)}
-                      placeholder="Nombre y apellido"
-                      />
+                    {allowManualName && (
+                      <>
+                        <p className="verification__manual-caption">Ingresa tu nombre si deseas continuar:</p>
+                        <input
+                          type="text"
+                          className="verification__input verification__manual-input"
+                          value={manualName}
+                          onChange={(event) => setManualName(event.target.value)}
+                          placeholder="Nombre y apellido"
+                        />
+                      </>
+                    )}
                   </div>
                 </div>
               )}

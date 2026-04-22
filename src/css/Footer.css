@@ -1,12 +1,13 @@
-
+.app-footer a{
+    color: rgb(133, 195, 248);
+    text-decoration: none;
+}
 @media screen and (max-width: 600px) {
     .app-footer{
         display: flex;
         flex-direction: column;
     }
     .app-footer a{
-        color: rgb(133, 195, 248);
-        text-decoration: none;
         padding-top: 10px;
     }
     .footer-text {

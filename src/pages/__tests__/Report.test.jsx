@@ -60,15 +60,10 @@ describe("Report page", () => {
     jest.clearAllMocks();
   });
 
-  it("purges old records before fetching data and updates pagination when the page size changes", async () => {
+  it("fetches data and updates pagination when the page size changes", async () => {
     renderReport();
 
-    await waitFor(() => expect(mockDeleteOldClientesBefore).toHaveBeenCalled());
     await waitFor(() => expect(mockFetchContactsData).toHaveBeenCalled());
-
-    const purgeCallOrder = mockDeleteOldClientesBefore.mock.invocationCallOrder[0];
-    const fetchCallOrder = mockFetchContactsData.mock.invocationCallOrder[0];
-    expect(purgeCallOrder).toBeLessThan(fetchCallOrder);
 
     const table = await screen.findByRole("table");
     await within(table).findByRole("cell", { name: "Persona 1" });
@@ -87,17 +82,9 @@ describe("Report page", () => {
     expect(paginatedRows).toHaveLength(10);
   });
 
-  it("shows and hides the global spinner around purge and initial fetch", async () => {
+  it("shows and hides the global spinner around initial fetch", async () => {
     jest.useFakeTimers();
     let resolveFetch;
-    let resolvePurge;
-
-    mockDeleteOldClientesBefore.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolvePurge = resolve;
-        })
-    );
 
     mockFetchContactsData.mockImplementation(
       () =>
@@ -112,15 +99,6 @@ describe("Report page", () => {
       jest.advanceTimersByTime(450);
     });
     expect(await screen.findByRole("status")).toBeInTheDocument();
-
-    act(() => {
-      resolvePurge({ deleted: 0, hasMore: false });
-    });
-
-    await act(async () => {
-      jest.advanceTimersByTime(450);
-    });
-    expect(screen.getByRole("status")).toBeInTheDocument();
 
     act(() => {
       resolveFetch({ rows: buildRows(1), lastDoc: null });

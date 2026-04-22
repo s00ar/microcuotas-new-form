@@ -31,6 +31,33 @@ export const mapReasonToResultado = (motivoCodigo) => {
   return RESULTADO_POR_MOTIVO[motivoCodigo] || null;
 };
 
+const normalizeText = (value) =>
+  String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const isAgeRejection = ({
+  motivoRechazoCodigo,
+  resultadoEvaluacionCodigo,
+  resultadoEvaluacionDescripcion,
+  motivoRechazo,
+}) => {
+  const normalizedCodigo = normalizeText(motivoRechazoCodigo);
+  const normalizedResultadoCodigo = normalizeText(resultadoEvaluacionCodigo);
+  if (normalizedCodigo === "menor_21" || normalizedCodigo === "1") {
+    return true;
+  }
+  if (normalizedResultadoCodigo === "1") {
+    return true;
+  }
+  const normalizedDescripcion = normalizeText(
+    resultadoEvaluacionDescripcion || motivoRechazo || ""
+  );
+  return normalizedDescripcion.includes("menor de 30");
+};
+
 const clientesCollection = collection(db, "clientes");
 
 const STRICT_UNIQUE_FIELDS = [
@@ -240,7 +267,9 @@ export const getCuilRecency = async (cuilValue, windowDays = 30) => {
   });
 
   if (!latestDate) {
-    return { canRegister: true, lastDate: null };
+    // If there are documents but no valid timestamp information, treat the CUIL as non-registrable.
+    // This prevents duplicate CUIL entries from slipping through when existing records lack timestamp fields.
+    return { canRegister: false, lastDate: null };
   }
 
   return { canRegister: latestDate <= cutoff, lastDate: latestDate };
@@ -399,7 +428,7 @@ export const validateTarjetaContact = async (
   };
 };
 
-const ensureUniqueFields = async (payload) => {
+const ensureUniqueFields = async (payload, windowDays = 30) => {
   const duplicated = [];
   for (const fieldRules of STRICT_UNIQUE_FIELDS) {
     const { name, ignoreEstados = [], allowSameCuil = false } = fieldRules;
@@ -424,6 +453,16 @@ const ensureUniqueFields = async (payload) => {
     error.fields = duplicated;
     throw error;
   }
+
+  if (payload?.cuil) {
+    const { canRegister } = await getCuilRecency(payload.cuil, windowDays);
+    if (!canRegister) {
+      const error = new Error("duplicate_fields");
+      error.code = "duplicate_fields";
+      error.fields = ["cuil"];
+      throw error;
+    }
+  }
 };
 
 const sanitizePayload = (payload) => {
@@ -438,10 +477,10 @@ const sanitizePayload = (payload) => {
 };
 
 const saveSolicitud = async (payload, options = {}) => {
-  const { skipUniqueValidation = false } = options;
+  const { skipUniqueValidation = false, windowDays = 30 } = options;
   const sanitizedPayload = sanitizePayload(payload);
   if (!skipUniqueValidation) {
-    await ensureUniqueFields(sanitizedPayload);
+    await ensureUniqueFields(sanitizedPayload, windowDays);
   }
   const docRef = await runWithAuthRetry(() =>
     addDoc(clientesCollection, {
@@ -459,25 +498,55 @@ export const saveRechazo = async ({
   resultadoEvaluacionDescripcion = null,
   ...rest
 }) => {
+  const resolvedMotivoCodigo = motivoRechazoCodigo || "sin_codigo";
   const resultado =
     resultadoEvaluacionCodigo && resultadoEvaluacionDescripcion
       ? {
           codigo: resultadoEvaluacionCodigo,
           descripcion: resultadoEvaluacionDescripcion,
         }
-      : mapReasonToResultado(motivoRechazoCodigo);
+      : mapReasonToResultado(resolvedMotivoCodigo);
+
+  const resultadoCodigo = resultado?.codigo ?? resultadoEvaluacionCodigo ?? null;
+  const resultadoDescripcion = resultado?.descripcion ?? resultadoEvaluacionDescripcion ?? null;
+  if (
+    isAgeRejection({
+      motivoRechazoCodigo: resolvedMotivoCodigo,
+      resultadoEvaluacionCodigo: resultadoCodigo,
+      resultadoEvaluacionDescripcion: resultadoDescripcion,
+      motivoRechazo,
+    })
+  ) {
+    return null;
+  }
 
   return saveSolicitud(
     {
       estado: "rechazada",
       motivoRechazo: motivoRechazo || "Motivo no informado",
-      motivoRechazoCodigo,
-      resultadoEvaluacionCodigo: resultado?.codigo ?? null,
-      resultadoEvaluacionDescripcion: resultado?.descripcion ?? null,
+      motivoRechazoCodigo: resolvedMotivoCodigo,
+      resultadoEvaluacionCodigo: resultadoCodigo,
+      resultadoEvaluacionDescripcion: resultadoDescripcion,
       ...rest,
     },
     { skipUniqueValidation: false }
   );
+};
+
+export const savePendiente = async ({
+  historialNoAprobado = false,
+  resultadoEvaluacionCodigo = null,
+  resultadoEvaluacionDescripcion = null,
+  ...payload
+}) => {
+  const resolvedPayload = {
+    estado: "pendiente",
+    historialNoAprobado: Boolean(historialNoAprobado),
+    resultadoEvaluacionCodigo,
+    resultadoEvaluacionDescripcion,
+    ...payload,
+  };
+  return saveSolicitud(resolvedPayload, { skipUniqueValidation: false });
 };
 
 export const saveAceptada = async ({

@@ -4,6 +4,7 @@ import Login from "./pages/Login";
 import Reset from "./pages/Reset";
 import Register from "./pages/Register";
 import Report from "./pages/Report";
+import LogsBcra from "./pages/LogsBcra";
 import Paso1 from "./pages/Paso1";
 import Paso2 from "./pages/Paso2";
 import Paso3 from "./pages/Paso3";
@@ -37,6 +38,7 @@ const App = () => {
               <Route path="/reset" element={<Reset />} />
               <Route path="/register" element={<Register />} />
               <Route path="/report" element={<Report />} />
+              <Route path="/logs-bcra" element={<LogsBcra />} />
               <Route path="/options" element={<Options />} />
               <Route path="/" element={<Paso1 />} />
             </Routes>

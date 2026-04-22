@@ -26,15 +26,25 @@ service cloud.firestore {
 
     match /clientes/{document} {
       allow get, list: if request.auth != null;
-      allow delete: if isAdmin() || isReportUser();
+      allow delete: if request.auth != null;
       allow create: if isValidSolicitud();
-      allow update: if false;
+      allow update: if request.auth != null && isAllowedReportUpdate();
 
       function isValidSolicitud() {
         return request.resource.data.keys().hasAll(["cuil", "estado", "timestamp"]) &&
           request.resource.data.cuil is string &&
           request.resource.data.cuil.matches("^[0-9]{11,}$") &&
-          request.resource.data.estado in ["aceptada", "rechazada"];
+          request.resource.data.estado in ["aceptada", "rechazada", "pendiente"];
+      }
+
+      function isAllowedReportUpdate() {
+        // Solo permitimos que el equipo de reportes/admin ajuste el motivo (y códigos asociados).
+        return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "motivoRechazo",
+          "motivoRechazoCodigo",
+          "resultadoEvaluacionCodigo",
+          "resultadoEvaluacionDescripcion"
+        ]);
       }
     }
 
@@ -42,6 +52,11 @@ service cloud.firestore {
       allow read: if request.auth != null && resource.data.uid == request.auth.uid;
       allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
       allow update, delete: if false;
+    }
+
+    match /bcraProxyLogs/{documentId} {
+      allow get, list: if request.auth != null;
+      allow create, update, delete: if false;
     }
 
     match /{document=**} {

@@ -1,0 +1,120 @@
+.logs-background {
+  background-color: #f7f6f6;
+  width: 100%;
+  min-height: 100vh;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.logs-container {
+  width: 100%;
+  margin: 0 auto;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 10px 35px rgba(0, 0, 0, 0.08);
+}
+
+.logs-header h2 {
+  margin: 0 0 12px 0;
+  color: #333333;
+}
+
+.logs-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.logs-select,
+.logs-input {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #c9c9c9;
+  font-size: 0.9rem;
+}
+
+.logs-input {
+  min-width: 240px;
+}
+
+.logs-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  background-color: #1976d2;
+  color: white;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.logs-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.logs-btn--ghost {
+  background-color: #e0e0e0;
+  color: #333333;
+}
+
+.logs-hint {
+  font-size: 0.85rem;
+  color: #666666;
+  margin-top: 8px;
+}
+
+.logs-error {
+  color: #b00020;
+  margin-top: 8px;
+  font-size: 0.9rem;
+}
+
+.logs-table {
+  margin-top: 16px;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.logs-table table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+}
+
+.logs-table th,
+.logs-table td {
+  text-align: left;
+  padding: 8px;
+  border: 1px solid #ddd;
+  font-size: 0.9rem;
+}
+
+.logs-payload {
+  max-width: 360px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logs-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.logs-pagination button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #c9c9c9;
+  background: #f4f4f4;
+  cursor: pointer;
+}
+
+.logs-pagination button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

@@ -1,9 +1,8 @@
 import "../css/Pasos.css";
 import { useNavigate, useLocation } from "react-router-dom";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Banner from "../components/Header";
 import LottieAnim from "../components/LottieAnim";
-import { saveRechazo, RESULTADOS_EVALUACION } from "../services/solicitudes";
 
 const CONTACTO = "11 4268 1704";
 const MINIMUM_AGE_MONTHS = 30 * 12; // 30 años
@@ -15,44 +14,27 @@ function Paso2() {
   const { cuotas, monto } = location.state || {};
   const [birthdate, setBirthdate] = useState("");
   const [error, setError] = useState("");
-  const rechazoRegistradoRef = useRef(false);
+
+  useEffect(() => {
+    if (cuotas === undefined || monto === undefined) {
+      navigate("/paso1", { replace: true });
+    }
+  }, [cuotas, monto, navigate]);
 
   const isAdult = (date) => {
     const birth = new Date(date);
     const today = new Date();
-    let months = (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth());
+    let months =
+      (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth());
     if (today.getDate() < birth.getDate()) {
       months--;
     }
     return months >= MINIMUM_AGE_MONTHS;
   };
 
-  const registrarRechazoEdad = async (fecha) => {
-    if (rechazoRegistradoRef.current) {
-      return;
-    }
-    rechazoRegistradoRef.current = true;
-    try {
-      const resultado = RESULTADOS_EVALUACION.MENOR_21;
-      await saveRechazo({
-        motivoRechazo: resultado.descripcion,
-        motivoRechazoCodigo: "menor_21",
-        resultadoEvaluacionCodigo: resultado.codigo,
-        resultadoEvaluacionDescripcion: resultado.descripcion,
-        cuotas: cuotas ?? null,
-        monto: monto ?? null,
-        fechaNacimiento: fecha || birthdate || null,
-        origen: "paso2",
-      });
-    } catch (registroError) {
-      console.error("Paso2 registrarRechazoEdad error", registroError);
-    }
-  };
-
   const handleBirthdateChange = (event) => {
     setBirthdate(event.target.value);
     setError("");
-    rechazoRegistradoRef.current = false;
   };
 
   const handleNext = () => {
@@ -62,7 +44,6 @@ function Paso2() {
     }
     if (!isAdult(birthdate)) {
       setError(MINOR_ERROR_MESSAGE);
-      registrarRechazoEdad(birthdate);
       return;
     }
     navigate("/paso3", { state: { cuotas, monto, birthdate } });
@@ -82,17 +63,17 @@ function Paso2() {
           </div>
           <div className="verification__container__panel_right">
             <div className="spacer">
-            <h2>Fecha de nacimiento:</h2>
-            <label className="sr-only" htmlFor="birthdate">
-              Fecha de nacimiento
-            </label>
-            <input
-              className="verification__input"
-              id="birthdate"
-              type="date"
-              aria-label="Fecha de nacimiento"
-              value={birthdate}
-              onChange={handleBirthdateChange}
+              <h2>Fecha de nacimiento:</h2>
+              <label className="sr-only" htmlFor="birthdate">
+                Fecha de nacimiento
+              </label>
+              <input
+                className="verification__input"
+                id="birthdate"
+                type="date"
+                aria-label="Fecha de nacimiento"
+                value={birthdate}
+                onChange={handleBirthdateChange}
               />
             </div>
             {error && (
@@ -104,7 +85,7 @@ function Paso2() {
           </div>
         </div>
       </div>
-        <div className="btn__spacer" />
+      <div className="btn__spacer" />
       <div className="btn__container">
         <button className="verification__btn" onClick={handleNext}>
           Continuar

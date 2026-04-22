@@ -6,6 +6,7 @@ import saveSolicitud, {
   mapReasonToResultado,
   normalizeFieldValue,
   saveAceptada,
+  savePendiente,
   saveRechazo,
   validateTarjetaContact,
 } from "../solicitudes";
@@ -156,6 +157,30 @@ describe("solicitudes service helpers", () => {
     expect(payload.timestamp).toBe("server-timestamp");
   });
 
+  it("omite guardar rechazos por menor de 30 años", async () => {
+    await saveRechazo({
+      motivoRechazo: "Rechazo por menor de 30 años.",
+      motivoRechazoCodigo: "menor_21",
+      cuil: "20-12345678-9",
+    });
+
+    expect(addDoc).not.toHaveBeenCalled();
+    expect(getDocs).not.toHaveBeenCalled();
+  });
+
+  it("omite guardar rechazos por menor de 30 años aun sin codigo", async () => {
+    await saveRechazo({
+      motivoRechazo: "Rechazo por menor de 30 años.",
+      motivoRechazoCodigo: "",
+      resultadoEvaluacionCodigo: null,
+      resultadoEvaluacionDescripcion: null,
+      cuil: "20-12345678-9",
+    });
+
+    expect(addDoc).not.toHaveBeenCalled();
+    expect(getDocs).not.toHaveBeenCalled();
+  });
+
   it("saves solicitudes aceptadas normalizando campos", async () => {
     addDoc.mockResolvedValueOnce({ id: "aceptada-1" });
     const uniqueSpy = jest.spyOn(solicitudesModule, "isFieldUnique").mockResolvedValue(true);
@@ -172,6 +197,27 @@ describe("solicitudes service helpers", () => {
     expect(payload.telefono).toBe("01140001234");
     expect(payload.email).toBe("demo@mail.com");
     expect(payload.estado).toBe("aceptada");
+    uniqueSpy.mockRestore();
+  });
+
+  it("saves pending requests with historialNoAprobado true", async () => {
+    addDoc.mockResolvedValueOnce({ id: "pendiente-1" });
+    const uniqueSpy = jest.spyOn(solicitudesModule, "isFieldUnique").mockResolvedValue(true);
+    await savePendiente({
+      nombre: "Demo",
+      apellido: "Test",
+      cuil: "20-12345678-9",
+      telefono: "1140000000",
+      email: "demo@mail.com",
+      monto: 40000,
+      cuotas: 10,
+      historialNoAprobado: true,
+    });
+    const payload = addDoc.mock.calls[0][1];
+    expect(payload.estado).toBe("pendiente");
+    expect(payload.historialNoAprobado).toBe(true);
+    expect(payload.telefono).toBe("1140000000");
+    expect(payload.email).toBe("demo@mail.com");
     uniqueSpy.mockRestore();
   });
 

@@ -218,6 +218,93 @@ td button:hover {
   cursor: pointer;
 }
 
+.bcra-status-bar {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid #e6e6e6;
+  border-radius: 10px;
+  background: #fafafa;
+  margin-bottom: 14px;
+}
+
+.bcra-status-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.bcra-status-label {
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  font-size: 0.85rem;
+  color: #2c2c2c;
+}
+
+.bcra-status-square {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  display: inline-block;
+}
+
+.bcra-status-square--up {
+  background: #26c05a;
+}
+
+.bcra-status-square--down {
+  background: #e53935;
+}
+
+.bcra-status-square--loading {
+  background: #9e9e9e;
+}
+
+.report-actions-bar {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 10px;
+}
+
+.btn__bulk-delete {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  background: #e53935;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.btn__bulk-delete:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn__bulk-clear {
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid #c9c9c9;
+  cursor: pointer;
+  background: #ffffff;
+  font-weight: 600;
+}
+
+.btn__bulk-clear:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .btn__export:hover {
   background-color: #45a049;
 }

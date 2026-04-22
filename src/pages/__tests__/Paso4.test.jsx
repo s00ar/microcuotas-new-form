@@ -46,4 +46,20 @@ describe("evaluateBcraEligibility", () => {
 
     expect(evaluation).toMatchObject({ ok: false, reason: "bcra_mora_historica" });
   });
+
+  it("rechaza cuando falta el historico aunque el actual venga OK", () => {
+    const evaluation = evaluateBcraEligibility(
+      {
+        periodos: [
+          {
+            periodo: "202602",
+            entidades: [{ entidad: "Banco Actual", situacion: 1 }],
+          },
+        ],
+      },
+      null
+    );
+
+    expect(evaluation).toMatchObject({ ok: false, reason: "bcra_sin_datos" });
+  });
 });

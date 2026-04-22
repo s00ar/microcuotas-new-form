@@ -1,0 +1,12 @@
+{
+  "name": "microcuotas-functions",
+  "private": true,
+  "engines": {
+    "node": "20"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "firebase-admin": "^12.5.0",
+    "firebase-functions": "^4.9.0"
+  }
+}

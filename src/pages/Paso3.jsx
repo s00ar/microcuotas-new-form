@@ -1,7 +1,7 @@
 // src/pages/Paso3.jsx
 import "../css/Pasos.css";
 import { useNavigate, useLocation } from "react-router-dom";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Banner from "../components/Header";
 import LottieAnim from "../components/LottieAnim";
 import { getCuilRecency } from "../services/solicitudes";
@@ -17,6 +17,12 @@ function Paso3() {
   const [cuil, setCuil] = useState(initialCuil || "");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (cuotas === undefined || monto === undefined || !birthdate) {
+      navigate("/paso1", { replace: true });
+    }
+  }, [cuotas, monto, birthdate, navigate]);
 
   const checkStatus = async () => {
     if (isLoading) {

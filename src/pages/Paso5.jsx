@@ -5,7 +5,7 @@ import Banner from "../components/Header";
 import LottieAnim from "../components/LottieAnim";
 import { FaCheckSquare } from "react-icons/fa";
 import { splitFullName } from "../utils/person";
-import { saveAceptada, isCuilRegistrable } from "../services/solicitudes";
+import { saveAceptada, savePendiente, isCuilRegistrable } from "../services/solicitudes";
 import { useGlobalLoadingEffect } from "../components/GlobalLoadingProvider";
 
 const formatDate = (value) => {
@@ -72,10 +72,41 @@ const isValidEmail = (value) =>
     value
   );
 
+const MINIMUM_AGE_MONTHS = 30 * 12;
+const isAdult = (date) => {
+  if (!date) {
+    return false;
+  }
+  const birth = new Date(date);
+  if (Number.isNaN(birth.getTime())) {
+    return false;
+  }
+  const today = new Date();
+  let months =
+    (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth());
+  if (today.getDate() < birth.getDate()) {
+    months--;
+  }
+  return months >= MINIMUM_AGE_MONTHS;
+};
+
 function Paso5() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { cuil, cuotas, monto, birthdate, nombre: fullName, bcraData, bcraHistorico } = location.state || {};
+  const {
+    cuil,
+    cuotas,
+    monto,
+    birthdate,
+    nombre: fullName,
+    bcraData,
+    bcraHistorico,
+    bcraRequestId,
+    historialNoAprobado = false,
+    bcraDeudasNoVerificadas = false,
+    bcraHistoricoNoVerificado = false,
+    bcraNoVerificado = false,
+  } = location.state || {};
   const [telefono, setTelefono] = useState("");
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -120,6 +151,11 @@ function Paso5() {
       return;
     }
 
+    if (!isAdult(birthdate)) {
+      window.alert("Debes ser mayor de 30 años para continuar.");
+      return;
+    }
+
     const releaseLock = () => {
       submitLockRef.current = false;
       setIsSubmitting(false);
@@ -139,20 +175,51 @@ function Paso5() {
         }
       }
 
-      await saveAceptada({
-        nombre,
-        apellido,
-        nombreCompleto: fullName,
-        cuil: cuilNormalizado,
-        monto,
-        cuotas,
-        telefono: telefonoNormalizado,
-        email: emailNormalizado,
-        fechaNacimiento: birthdate || null,
-        bcra: bcraData || null,
-        bcraHistorico: bcraHistorico || null,
-        origen: "paso5",
-      });
+      const requiereRevisionBcra =
+        Boolean(historialNoAprobado) ||
+        Boolean(bcraNoVerificado) ||
+        Boolean(bcraDeudasNoVerificadas) ||
+        Boolean(bcraHistoricoNoVerificado);
+
+      if (requiereRevisionBcra) {
+        await savePendiente({
+          nombre,
+          apellido,
+          nombreCompleto: fullName,
+          cuil: cuilNormalizado,
+          monto,
+          cuotas,
+          telefono: telefonoNormalizado,
+          email: emailNormalizado,
+          fechaNacimiento: birthdate || null,
+          bcraRequestId: bcraRequestId || null,
+          bcra: bcraData || null,
+          bcraHistorico: bcraHistorico || null,
+          historialNoAprobado: Boolean(historialNoAprobado),
+          bcraDeudasNoVerificadas: Boolean(bcraDeudasNoVerificadas),
+          bcraHistoricoNoVerificado: Boolean(bcraHistoricoNoVerificado),
+          bcraNoVerificado: Boolean(bcraNoVerificado),
+          origen: "paso5",
+        });
+      } else {
+        await saveAceptada({
+          nombre,
+          apellido,
+          nombreCompleto: fullName,
+          cuil: cuilNormalizado,
+          monto,
+          cuotas,
+          telefono: telefonoNormalizado,
+          email: emailNormalizado,
+          fechaNacimiento: birthdate || null,
+          bcraRequestId: bcraRequestId || null,
+          bcra: bcraData || null,
+          bcraHistorico: bcraHistorico || null,
+          bcraDeudasNoVerificadas: Boolean(bcraDeudasNoVerificadas),
+          bcraHistoricoNoVerificado: Boolean(bcraHistoricoNoVerificado),
+          origen: "paso5",
+        });
+      }
 
       releaseLock();
       navigate("/solicitud-exitosa", {

@@ -11,7 +11,7 @@ import {
   query,
   getDocs,
   where,
-  getFirestore,
+  initializeFirestore,
   collection,
   addDoc,
   deleteDoc,
@@ -74,7 +74,11 @@ const app = initializeApp(firebaseConfig);
 // const db = getDatabase(app);
 const auth = getAuth(app);
 const storage = getStorage(app);
-const db = getFirestore(app);
+const db = initializeFirestore(app, {
+  // Ayuda en redes/proxies donde el stream WebChannel falla (errores Listen/channel).
+  experimentalAutoDetectLongPolling: true,
+  useFetchStreams: false,
+});
 
 
 const logInWithEmailAndPassword = async (email, password) => {
@@ -147,8 +151,8 @@ const fetchContactsData = async (startDate, endDate, extraOptions = {}) => {
   } else if (!start && end) {
     constraints.push(where("timestamp", "<=", new Date(end)));
   } else if (start && end) {
-    constraints.push(where("timestamp", ">", new Date(start)));
-    constraints.push(where("timestamp", "<", new Date(end)));
+    constraints.push(where("timestamp", ">=", new Date(start)));
+    constraints.push(where("timestamp", "<=", new Date(end)));
   }
 
   if (limitSize) {
