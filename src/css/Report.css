@@ -13,6 +13,26 @@
   flex-direction: column;
   justify-content: center; /* Center table container */
   padding-top: 2rem;
+  width: 100%;
+}
+
+.table__scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table__scroll table {
+  width: max-content;
+  min-width: 100%;
+}
+
+.report__col-bcra-deuda-actual-verificada {
+  min-width: 210px;
+}
+
+.report__col-bcra-deuda-historica-verificada {
+  min-width: 240px;
 }
 
 .search__container {

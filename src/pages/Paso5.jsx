@@ -102,9 +102,8 @@ function Paso5() {
     bcraData,
     bcraHistorico,
     bcraRequestId,
-    historialNoAprobado = false,
-    bcraDeudasNoVerificadas = false,
-    bcraHistoricoNoVerificado = false,
+    bcraDeudaActualVerificada = false,
+    bcraDeudaHistoricaVerificada = false,
     bcraNoVerificado = false,
   } = location.state || {};
   const [telefono, setTelefono] = useState("");
@@ -176,10 +175,9 @@ function Paso5() {
       }
 
       const requiereRevisionBcra =
-        Boolean(historialNoAprobado) ||
         Boolean(bcraNoVerificado) ||
-        Boolean(bcraDeudasNoVerificadas) ||
-        Boolean(bcraHistoricoNoVerificado);
+        !Boolean(bcraDeudaActualVerificada) ||
+        !Boolean(bcraDeudaHistoricaVerificada);
 
       if (requiereRevisionBcra) {
         await savePendiente({
@@ -195,9 +193,8 @@ function Paso5() {
           bcraRequestId: bcraRequestId || null,
           bcra: bcraData || null,
           bcraHistorico: bcraHistorico || null,
-          historialNoAprobado: Boolean(historialNoAprobado),
-          bcraDeudasNoVerificadas: Boolean(bcraDeudasNoVerificadas),
-          bcraHistoricoNoVerificado: Boolean(bcraHistoricoNoVerificado),
+          bcraDeudaActualVerificada: Boolean(bcraDeudaActualVerificada),
+          bcraDeudaHistoricaVerificada: Boolean(bcraDeudaHistoricaVerificada),
           bcraNoVerificado: Boolean(bcraNoVerificado),
           origen: "paso5",
         });
@@ -215,8 +212,8 @@ function Paso5() {
           bcraRequestId: bcraRequestId || null,
           bcra: bcraData || null,
           bcraHistorico: bcraHistorico || null,
-          bcraDeudasNoVerificadas: Boolean(bcraDeudasNoVerificadas),
-          bcraHistoricoNoVerificado: Boolean(bcraHistoricoNoVerificado),
+          bcraDeudaActualVerificada: Boolean(bcraDeudaActualVerificada),
+          bcraDeudaHistoricaVerificada: Boolean(bcraDeudaHistoricaVerificada),
           origen: "paso5",
         });
       }

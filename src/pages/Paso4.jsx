@@ -460,8 +460,8 @@ function Paso4() {
   const [bcraData, setBcraData] = useState(null);
   const [bcraHistoricalData, setBcraHistoricalData] = useState(null);
   const [bcraRequestId, setBcraRequestId] = useState(null);
-  const [bcraDeudasNoVerificadas, setBcraDeudasNoVerificadas] = useState(false);
-  const [bcraHistoricoNoVerificado, setBcraHistoricoNoVerificado] = useState(false);
+  const [bcraDeudaActualVerificada, setBcraDeudaActualVerificada] = useState(false);
+  const [bcraDeudaHistoricaVerificada, setBcraDeudaHistoricaVerificada] = useState(false);
   const [rejectionPrompt, setRejectionPrompt] = useState(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [contactPhone, setContactPhone] = useState("");
@@ -601,8 +601,8 @@ function Paso4() {
       setBcraHistoricalData(null);
       setPersonName("");
       setAllowManualName(false);
-      setBcraDeudasNoVerificadas(false);
-      setBcraHistoricoNoVerificado(false);
+      setBcraDeudaActualVerificada(false);
+      setBcraDeudaHistoricaVerificada(false);
 
       try {
         const mockScenario = MOCK_BCRA_RESPONSES[cuil];
@@ -631,13 +631,15 @@ function Paso4() {
             err.mockMessage = "La respuesta simulada no trae denominacion.";
             throw err;
           }
-          if (isMounted) {
-            setBcraData(normalizedResults);
-            setBcraHistoricalData(normalizedHistory);
-            setPersonName(normalized.toUpperCase());
-          }
-          return;
-        }
+           if (isMounted) {
+             setBcraData(normalizedResults);
+             setBcraHistoricalData(normalizedHistory);
+             setPersonName(normalized.toUpperCase());
+             setBcraDeudaActualVerificada(true);
+             setBcraDeudaHistoricaVerificada(true);
+           }
+           return;
+         }
 
 	        const endpointActual = buildBcraProxyUrl(cuil, false, requestId);
 	        const endpointHistorico = buildBcraProxyUrl(cuil, true, requestId);
@@ -654,10 +656,13 @@ function Paso4() {
 	
 	        if (actualSettled.status === "fulfilled") {
 	          normalizedResults = actualSettled.value;
+            if (isMounted) {
+              setBcraDeudaActualVerificada(true);
+            }
 	        } else {
 	          actualError = actualSettled.reason;
             if (isMounted) {
-              setBcraDeudasNoVerificadas(true);
+              setBcraDeudaActualVerificada(false);
             }
 	          logBcraEvent("warn", "BCRA actual fallo, continuo con historico", {
 	            requestId,
@@ -670,10 +675,13 @@ function Paso4() {
 	
 	        if (historicoSettled.status === "fulfilled") {
 	          historicalResults = historicoSettled.value;
+            if (isMounted) {
+              setBcraDeudaHistoricaVerificada(true);
+            }
 	        } else {
 	          historicalError = historicoSettled.reason;
             if (isMounted) {
-              setBcraHistoricoNoVerificado(true);
+              setBcraDeudaHistoricaVerificada(false);
             }
 	          logBcraEvent("warn", "BCRA historico fallo", {
 	            requestId,
@@ -701,6 +709,8 @@ function Paso4() {
             setManualName("");
             setAllowManualName(true);
             setError(rejectionMessages.missingData);
+            setBcraDeudaActualVerificada(true);
+            setBcraDeudaHistoricaVerificada(false);
           }
           return;
         }
@@ -745,8 +755,8 @@ function Paso4() {
           setBcraHistoricalData(null);
           setPersonName("");
           setAllowManualName(true);
-          setBcraDeudasNoVerificadas(true);
-          setBcraHistoricoNoVerificado(true);
+          setBcraDeudaActualVerificada(false);
+          setBcraDeudaHistoricaVerificada(false);
           const statusInfo = err?.status ? ` (estado ${err.status})` : "";
           if (err?.mockMessage) {
             setError(`${err.mockMessage}${statusInfo}`);
@@ -977,7 +987,9 @@ function Paso4() {
     setIsConfirming(true);
 
     const bcraUnverified =
-      bcraDeudasNoVerificadas || bcraHistoricoNoVerificado || (!bcraData && !bcraHistoricalData);
+      !bcraDeudaActualVerificada ||
+      !bcraDeudaHistoricaVerificada ||
+      (!bcraData && !bcraHistoricalData);
 
     const missingHistoricalData = bcraData && !bcraHistoricalData;
     if (missingHistoricalData) {
@@ -991,9 +1003,8 @@ function Paso4() {
           bcraData,
           bcraHistorico: bcraHistoricalData,
           bcraRequestId: bcraRequestId || null,
-          historialNoAprobado: true,
-          bcraDeudasNoVerificadas: Boolean(bcraDeudasNoVerificadas),
-          bcraHistoricoNoVerificado: true,
+          bcraDeudaActualVerificada: Boolean(bcraDeudaActualVerificada),
+          bcraDeudaHistoricaVerificada: false,
           bcraNoVerificado: true,
         },
       });
@@ -1013,8 +1024,8 @@ function Paso4() {
           bcraData,
           bcraHistorico: bcraHistoricalData,
           bcraRequestId: bcraRequestId || null,
-          bcraDeudasNoVerificadas: Boolean(bcraDeudasNoVerificadas),
-          bcraHistoricoNoVerificado: Boolean(bcraHistoricoNoVerificado),
+          bcraDeudaActualVerificada: Boolean(bcraDeudaActualVerificada),
+          bcraDeudaHistoricaVerificada: Boolean(bcraDeudaHistoricaVerificada),
           bcraNoVerificado: true,
         },
       });

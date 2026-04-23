@@ -37,6 +37,10 @@ const BCRA_HEALTHCHECK_CUIL = process.env.REACT_APP_BCRA_HEALTHCHECK_CUIL || "20
 const BCRA_HEALTHCHECK_TIMEOUT_MS = 9000;
 const BCRA_MISSING_DATA_SHORT = "No pudimos validar la informacion del BCRA";
 const BCRA_MISSING_DATA_NORMALIZED_PREFIX = normalizeAndStripAccents(BCRA_MISSING_DATA_SHORT);
+const BCRA_TOOLTIP_DEUDA_ACTUAL_VERIFICADA =
+  "Se obtuvieron exitosamente los datos de deudas actuales del BCRA";
+const BCRA_TOOLTIP_DEUDA_HISTORICA_VERIFICADA =
+  "Se obtuvieron exitosamente los datos de historial crediticio del BCRA";
 
 const normalizeMotivoForReport = (value) => {
   const raw = toSafeString(value);
@@ -823,9 +827,8 @@ export default function Admin() {
       "cuotas",
       "tipoPrestamo",
       "estado",
-      "historialNoAprobado",
-      "Deudas No Verificadas",
-      "Historico No Verificado",
+      "Deuda Actual Verificada",
+      "Deuda Histórica Verificada",
       "motivoRechazo",
       "motivoRechazoCodigo",
       "resultadoEvaluacionCodigo",
@@ -846,18 +849,17 @@ export default function Admin() {
     _[6] = e.cuotas;
     _[7] = e._tipoPrestamoLabel || e.tipoPrestamo || "";
     _[8] = e.estado || "";
-    _[9] = e.historialNoAprobado ? "Sí" : "No";
-    _[10] = e.bcraDeudasNoVerificadas ? "Sí" : "No";
-    _[11] = e.bcraHistoricoNoVerificado ? "Sí" : "No";
-    _[12] = e._resolvedMotivo || e.motivoRechazo || "";
-    _[13] = e.motivoRechazoCodigo || "";
-    _[14] = e.resultadoEvaluacionCodigo || "";
-    _[15] = normalizeMotivoForReport(e.resultadoEvaluacionDescripcion).text || "";
-    _[16] = e.ingresoMensual || "";
-    _[17] = e.fechaIngreso ? `"${e.fechaIngreso}"` : "";
+    _[9] = e.bcraDeudaActualVerificada ? "Sí" : "No";
+    _[10] = e.bcraDeudaHistoricaVerificada ? "Sí" : "No";
+    _[11] = e._resolvedMotivo || e.motivoRechazo || "";
+    _[12] = e.motivoRechazoCodigo || "";
+    _[13] = e.resultadoEvaluacionCodigo || "";
+    _[14] = normalizeMotivoForReport(e.resultadoEvaluacionDescripcion).text || "";
+    _[15] = e.ingresoMensual || "";
+    _[16] = e.fechaIngreso ? `"${e.fechaIngreso}"` : "";
     const fecha = e._timestampDate || firebaseTimestampToDate(e.timestamp);
-    _[18] = fecha ? fecha.toISOString() : "";
-    _[19] = "\n";
+    _[17] = fecha ? fecha.toISOString() : "";
+    _[18] = "\n";
     return _;
   });
     var pom = document.createElement("a");
@@ -1588,7 +1590,8 @@ export default function Admin() {
             </select>
           </div>
           <h6>Clickea en cada encabezado para ordenarlo por ese valor</h6>
-          <table>
+          <div className="table__scroll">
+            <table>
             <thead>
               <tr>
                 <th>
@@ -1753,19 +1756,20 @@ export default function Admin() {
                     </select>
                   </div>
                 </th>
-                <th>
+                <th
+                  title={BCRA_TOOLTIP_DEUDA_ACTUAL_VERIFICADA}
+                  className="report__col-bcra-deuda-actual-verificada"
+                >
                   <div className="table__header-cell">
-                    <span>Historial no aprobado</span>
+                    <span>Deuda Actual Verificada</span>
                   </div>
                 </th>
-                <th>
+                <th
+                  title={BCRA_TOOLTIP_DEUDA_HISTORICA_VERIFICADA}
+                  className="report__col-bcra-deuda-historica-verificada"
+                >
                   <div className="table__header-cell">
-                    <span>Deudas No Verificadas</span>
-                  </div>
-                </th>
-                <th>
-                  <div className="table__header-cell">
-                    <span>Historico No Verificado</span>
+                    <span>Deuda Histórica Verificada</span>
                   </div>
                 </th>
                 <th>
@@ -1838,9 +1842,18 @@ export default function Admin() {
                     <td>{tipoPrestamoVisible}</td>
                     <td>{fechaFormateada}</td>
                     <td>{estadoVisible}</td>
-                    <td>{cliente.historialNoAprobado ? "Sí" : "No"}</td>
-                    <td>{cliente.bcraDeudasNoVerificadas ? "Sí" : "No"}</td>
-                    <td>{cliente.bcraHistoricoNoVerificado ? "Sí" : "No"}</td>
+                    <td
+                      title={BCRA_TOOLTIP_DEUDA_ACTUAL_VERIFICADA}
+                      className="report__col-bcra-deuda-actual-verificada"
+                    >
+                      {cliente.bcraDeudaActualVerificada ? "Sí" : "No"}
+                    </td>
+                    <td
+                      title={BCRA_TOOLTIP_DEUDA_HISTORICA_VERIFICADA}
+                      className="report__col-bcra-deuda-historica-verificada"
+                    >
+                      {cliente.bcraDeudaHistoricaVerificada ? "Sí" : "No"}
+                    </td>
                     <td
                       onClick={() => beginEditMotivo(cliente)}
                       style={{ cursor: savingMotivoId ? "default" : "pointer" }}
@@ -1891,7 +1904,8 @@ export default function Admin() {
 
 
             </tbody>
-          </table>
+            </table>
+          </div>
           <div className="pagination-container">
             <button
               disabled={page === 0}

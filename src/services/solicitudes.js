@@ -534,14 +534,18 @@ export const saveRechazo = async ({
 };
 
 export const savePendiente = async ({
-  historialNoAprobado = false,
+  bcraDeudaActualVerificada = false,
+  bcraDeudaHistoricaVerificada = false,
+  bcraNoVerificado = false,
   resultadoEvaluacionCodigo = null,
   resultadoEvaluacionDescripcion = null,
   ...payload
 }) => {
   const resolvedPayload = {
     estado: "pendiente",
-    historialNoAprobado: Boolean(historialNoAprobado),
+    bcraDeudaActualVerificada: Boolean(bcraDeudaActualVerificada),
+    bcraDeudaHistoricaVerificada: Boolean(bcraDeudaHistoricaVerificada),
+    bcraNoVerificado: Boolean(bcraNoVerificado),
     resultadoEvaluacionCodigo,
     resultadoEvaluacionDescripcion,
     ...payload,

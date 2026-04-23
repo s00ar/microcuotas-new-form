@@ -200,7 +200,7 @@ describe("solicitudes service helpers", () => {
     uniqueSpy.mockRestore();
   });
 
-  it("saves pending requests with historialNoAprobado true", async () => {
+  it("saves pending requests with BCRA verification flags", async () => {
     addDoc.mockResolvedValueOnce({ id: "pendiente-1" });
     const uniqueSpy = jest.spyOn(solicitudesModule, "isFieldUnique").mockResolvedValue(true);
     await savePendiente({
@@ -211,11 +211,15 @@ describe("solicitudes service helpers", () => {
       email: "demo@mail.com",
       monto: 40000,
       cuotas: 10,
-      historialNoAprobado: true,
+      bcraDeudaActualVerificada: true,
+      bcraDeudaHistoricaVerificada: false,
+      bcraNoVerificado: true,
     });
     const payload = addDoc.mock.calls[0][1];
     expect(payload.estado).toBe("pendiente");
-    expect(payload.historialNoAprobado).toBe(true);
+    expect(payload.bcraDeudaActualVerificada).toBe(true);
+    expect(payload.bcraDeudaHistoricaVerificada).toBe(false);
+    expect(payload.bcraNoVerificado).toBe(true);
     expect(payload.telefono).toBe("1140000000");
     expect(payload.email).toBe("demo@mail.com");
     uniqueSpy.mockRestore();
